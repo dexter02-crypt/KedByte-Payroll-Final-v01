@@ -17,6 +17,7 @@ import {
   Modal,
   toast,
 } from "@/components/kedbyte/primitives";
+import { ExportButton } from "@/components/kedbyte/export-button";
 
 // ============ TYPES ============
 interface Employee {
@@ -180,10 +181,11 @@ export function PensionsView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <GhostButton onClick={() => toast("PAPDIS export queued", "info")}>
-            <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">file_export</span>
-            Export Report
-          </GhostButton>
+          <ExportButton
+            href={`/api/pensions/assessment/export${selectedCompany ? `?companyId=${selectedCompany}` : ""}`}
+            label="Export Report"
+            icon="file_export"
+          />
           <PearlButton onClick={assessNow}>
             <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">bolt</span>
             Assess Now

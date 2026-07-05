@@ -16,6 +16,7 @@ import {
   Modal,
   toast,
 } from "@/components/kedbyte/primitives";
+import { ExportButton } from "@/components/kedbyte/export-button";
 
 // ============================================================
 // KEDBYTE PAYROLL — SETTINGS MODULE (9 tabs, shared architecture)
@@ -1374,6 +1375,13 @@ function ComplianceTab({ companyId, setCompanyId }: { companyId: string | null; 
           { key: "payroll", label: "Payroll Records Retention", value: `${data.retention.payrollYears} years`, mono: true },
           { key: "statutory", label: "Statutory Minimum", value: `${data.retention.statutoryMinimumYears} years`, mono: true },
         ]} />
+        <div className="mt-4 pt-3 border-t border-subtle flex items-center justify-between">
+          <div>
+            <div className="text-[13px] text-tprimary font-medium">Audit Ledger Export</div>
+            <div className="text-[11px] text-ttertiary">The dispute-resolution artifact — hash-chained, append-only</div>
+          </div>
+          <ExportButton href="/api/audit/export" label="Export Ledger" icon="receipt_long" filename={`audit-ledger-${new Date().toISOString().slice(0, 10)}.csv`} />
+        </div>
       </SectionCard>
 
       <SectionCard title="GDPR Erasure Requests" description="Anonymise job runs when retention expires">
