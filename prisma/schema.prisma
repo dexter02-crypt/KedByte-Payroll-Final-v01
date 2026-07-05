@@ -124,6 +124,7 @@ model Employee {
   aeAssessments        AeAssessment[]
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  @@unique([companyId, payrollId])
 }
 
 model PendingBankChange {

@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { assessAutoEnrolment, parseTaxCode } from "@/engine/payroll";
+import { assessAutoEnrolment, parseTaxCode, validateNINO } from "@/engine/payroll";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const bureau = await db.bureau.findFirst();
   if (!bureau) return NextResponse.json({ error: "No bureau" }, { status: 500 });
+
+  // Validate NINO if provided
+  if (body.nino && !validateNINO(body.nino)) {
+    return NextResponse.json({ error: "Invalid NINO format", fields: { nino: "Must match HMRC format (e.g. AB123456C)" } }, { status: 422 });
+  }
+
+  // Validate tax code if provided (try parse)
+  if (body.taxCode) {
+    try { parseTaxCode(body.taxCode); } catch {
+      return NextResponse.json({ error: "Invalid tax code", fields: { taxCode: "Unrecognised tax code format" } }, { status: 422 });
+    }
+  }
 
   // Generate payroll ID
   const count = await db.employee.count({ where: { companyId: body.companyId } });
