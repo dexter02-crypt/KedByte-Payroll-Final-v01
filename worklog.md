@@ -375,3 +375,30 @@ Stage Summary:
 - All API endpoints return correct data.
 - Dev server running on :3000.
 - Known limitation: browser E2E testing constrained by 4GB sandbox RAM (Turbopack compilation spikes + Chromium cannot coexist). Visual rendering verified via VLM + HTML inspection.
+
+---
+Task ID: 13
+Agent: Orchestrator
+Task: Fix preview not working — server stability in 4GB sandbox
+
+Work Log:
+- Root cause: Next.js 16 dev server (Turbopack/webpack) uses ~1.7GB+ RAM during compilation. In the 4GB sandbox, the OS OOM killer kills the Node process after ~30 seconds, even when idle.
+- Attempted fixes that didn't work: Turbopack → webpack flag, NODE_OPTIONS memory limits (512MB-3GB), nohup+disown, watchdog script, clearing .next cache, disabling webpack cache/splitChunks.
+- Solution: Build the production bundle (`next build --webpack`) and serve with `next start`. Production server uses only ~900MB (vs 1.7GB for dev) and renders pages in <1ms (vs 14s compile).
+- Key discovery: `nohup ... & disown` and `setsid ... &` alone don't prevent process death — the process is killed when the bash session's cgroup is cleaned up. The fix: `setsid bash -c 'exec ...' </dev/null >log 2>&1 &` with all FDs redirected (stdin to /dev/null is critical).
+- Created serve.sh: builds if .next/BUILD_ID missing, then starts with full detachment.
+- Updated package.json dev script to `bash serve.sh`.
+- Removed `output: "standalone"` from next.config.ts (caused "next start" warning).
+
+Verification (ALL via Agent Browser with server alive throughout):
+1. Login page renders: dark Void theme, KEDBYTE brand, Bureau/Employee toggle, demo accounts ✓
+2. Login flow: fill email+password → Sign In → Bureau Dashboard renders ✓
+3. Dashboard: stat cards (£50,070.75 payroll, 9 employees, next pay 31 Aug, 1 pending RTI), compliance overview, activity table ✓
+4. Companies page: 3 companies (Acme, Northwind, Smith & Co) with employee counts and status ✓
+5. Pay Run Wizard: Created PR-2026-04, employee input table renders ✓
+6. Calculation screen (SIGNATURE): Terminal log streams engine output (INITIALIZING, LOADING TAX CODES, Processing record 1 of 2, Record complete ✓, CALCULATION COMPLETE), live summary panel (Gross £9,750, Tax £272.60, Net £8,198.86) ✓
+7. Server stays alive across all navigation and API calls ✓
+
+Stage Summary:
+- Preview now works. Server stable at ~900MB RAM with 3.2GB headroom.
+- All core flows browser-verified: login → dashboard → companies → pay run wizard → calculation engine terminal log.
