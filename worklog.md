@@ -402,3 +402,57 @@ Verification (ALL via Agent Browser with server alive throughout):
 Stage Summary:
 - Preview now works. Server stable at ~900MB RAM with 3.2GB headroom.
 - All core flows browser-verified: login → dashboard → companies → pay run wizard → calculation engine terminal log.
+
+---
+Task ID: 14
+Agent: Orchestrator
+Task: Build complete Settings module per kedbyte_settings_module_spec.md v1.0
+
+Work Log:
+- Read full 455-line settings spec: 9 tabs, shared architecture, effective-dated config, audit, validation
+- Fixed §0 RETIREM bug: renamed to "Pension", icon changed from 'retirement' to 'savings', shared SettingsNavItem component, Inter font 13/500 with letterSpacing:0 textTransform:none to kill any font leakage
+- Built shared components: SettingsNav (9 sections, inset pearl bar active state), SectionCard (with id prop for #hmrc-credentials anchor), KeyValueTable, ThresholdTable (22 thresholds with variance/authority/effective), CompanySelector
+- Built all 9 tabs per spec:
+  1. Company: bureau defaults + per-company overrides, edit modal with validation (OT multiplier 1-3, PILON divisor 260/252/365), "changing defaults never retro-changes existing companies" banner
+  2. Tax: 22 statutory thresholds with variance vs prior year, HMRC sync (POST /api/settings/tax/sync returns reviewable diff — never auto-applies), override modal (effective-dated insert with mandatory reason + committed-runs conflict guard 409), PAYE identity form with validation, closed-year read-only banner, rUK + Scottish band tables
+  3. Pension: scheme config (provider/basis/relief/eeRate/erRate), statutory floor validation (8%/3% QE, 9%/4% pensionable, 7%/3% total — 422 on breach), worked example using real engine maths, NEST connection card with direct debit warning, re-enrolment window
+  4. Bank: masked account display, full re-entry edit with modulus check + override (mandatory reason), BACS SUN + lead days, linked config cards
+  5. Users: invite (POST /api/settings/users/invite with 7d token), edit role/status, last-bureau-admin guard (409), MFA reset, token_version++ on role change
+  6. Security: password policy (NIST 800-63B), active sessions with revoke, HMRC Gateway credentials per company (write-only password, Test button → POST /api/settings/security/hmrc/verify), audit chain integrity card with #hmrc-credentials anchor for RTI 1046 deep-link
+  7. Compliance: computed year-end checklist (final FPS, P60s, P11Ds, Class 1A) with deadline chips (amber ≤14d, red overdue), small employer relief (92%/109%), employment allowance progress bar, GDPR erasure requests, retention policy
+  8. Notifications: 6 bureau rules with locked indicators (RTI rejected + bank change = compliance-locked, cannot disable), offsetDays T-5/T-2/T0, per-user email digest preference
+  9. System: bureau info, job queue health (4 queues), bank holiday sync (8 dates, gov.uk source), DPS fetch with high-water marks (P6/SL1/P9), data export (CSV/JSON, rate-limited, audited)
+
+- Built API routes:
+  - /api/settings/[section] (GET + PUT for all 9 sections) with unified error handling — updaters return {error,status,fields} objects, PUT handler checks and returns proper HTTP status
+  - /api/settings/tax/sync (POST → returns reviewable diff, never auto-applies)
+  - /api/settings/tax/override (POST → inserts effective-dated statutory_config row, never UPDATE; 409 if committed pay runs exist after effectiveFrom; mandatory reason)
+  - /api/settings/users/invite (POST → creates invited user + 7d token, 409 on duplicate)
+  - /api/settings/users/[id] (PUT → role/status with last-admin guard, token_version++ forces re-login)
+  - /api/settings/security/hmrc/verify (POST → tests Government Gateway credentials)
+  - /api/settings/system/export (POST → queues data export job, audited)
+
+- Fixed validation bug: updaters were returning NextResponse.json() which got double-wrapped by PUT handler, turning 422/409 errors into 200. Restructured to return plain {error, status, fields} objects.
+
+Verification (ALL PASSING):
+1. All 9 section GET APIs → 200 ✓
+2. Tax tab: 22 thresholds, 3 rUK bands, 6 Scottish bands, sync=ok ✓
+3. Pension tab: NEST provider, 5 enrolled, statutory floor 8%/3% ✓
+4. Users tab: 5 users with correct roles ✓
+5. Security tab: 3 HMRC credentials, audit chain intact ✓
+6. Compliance tab: 4-item year-end checklist, EA £4200/£10500 ✓
+7. Notifications tab: 6 rules (2 locked), email digest immediate ✓
+8. System tab: 4 job queues, 8 bank holidays, DPS high-water marks ✓
+9. Pension rate below floor → 422 "Below auto-enrolment minimum" ✓
+10. Pension rate at floor → 200 ✓
+11. Invalid PAYE ref → 422 ✓
+12. Valid PAYE ref → 200 ✓
+13. Demote last bureau admin → 409 ✓
+14. HMRC sync → 3-change reviewable diff (NLW, SSP, NI ER) ✓
+15. Lint: 0 errors, 2 cosmetic warnings (icon font) ✓
+
+Stage Summary:
+- Complete settings module built per spec v1.0. All 9 tabs functional with shared architecture.
+- §0 RETIREM fix applied: label "Pension", icon "savings", Inter font, shared component.
+- Effective-dated config, audit logging, version-based concurrency, statutory floor validation all implemented.
+- Acceptance checklist items 1-10 from spec §6 verified via API testing.

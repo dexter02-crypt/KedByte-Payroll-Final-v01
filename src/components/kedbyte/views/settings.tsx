@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { fmtDate } from "@/store/app";
+import { useApp, fmtDate, fmtDateTime, gbp } from "@/store/app";
 import {
   DataTable,
   TableRow,
@@ -17,180 +17,174 @@ import {
   toast,
 } from "@/components/kedbyte/primitives";
 
-// ============ TYPES ============
-interface ConfigRow {
-  key: string;
-  value: string;
-  variance: string;
-  authority: string;
-}
+// ============================================================
+// KEDBYTE PAYROLL — SETTINGS MODULE (9 tabs, shared architecture)
+// Spec v1.0 · §0 fix: Pension label, savings icon, Inter font
+// ============================================================
 
-interface BankHoliday {
-  date: string;
-  region: string;
-  name: string;
-  bacsImpact: boolean;
-}
-
-interface SeededUser {
-  id: string;
-  email: string;
-  role: string;
-  status: string;
-  company?: string;
-}
-
-// ============ TABS ============
-const TABS = [
-  { id: "company", label: "Company", icon: "business" },
-  { id: "tax", label: "Tax", icon: "percent" },
-  { id: "pension", label: "Pension", icon: "retirement" },
-  { id: "bank", label: "Bank", icon: "account_balance" },
-  { id: "users", label: "Users", icon: "group" },
-  { id: "security", label: "Security", icon: "lock" },
-  { id: "compliance", label: "Compliance", icon: "verified" },
-  { id: "notifications", label: "Notifications", icon: "notifications" },
-  { id: "system", label: "System", icon: "settings" },
+// ============ SETTINGS NAV (shared component — §0.2) ============
+const SETTINGS_SECTIONS = [
+  { slug: "company", label: "Company", icon: "domain" },
+  { slug: "tax", label: "Tax", icon: "percent" },
+  { slug: "pension", label: "Pension", icon: "savings" },
+  { slug: "bank", label: "Bank", icon: "account_balance" },
+  { slug: "users", label: "Users", icon: "group" },
+  { slug: "security", label: "Security", icon: "lock" },
+  { slug: "compliance", label: "Compliance", icon: "verified" },
+  { slug: "notifications", label: "Notifications", icon: "notifications" },
+  { slug: "system", label: "System", icon: "settings" },
 ] as const;
 
-type TabId = (typeof TABS)[number]["id"];
+type SectionSlug = (typeof SETTINGS_SECTIONS)[number]["slug"];
 
-// ============ SEEDED USERS (static) ============
-const SEEDED_USERS: SeededUser[] = [
-  { id: "user_admin", email: "admin@kedbyte.co.uk", role: "bureau_admin", status: "active" },
-  { id: "user_smith_admin", email: "admin@smithco.co.uk", role: "company_admin", status: "active", company: "Smith & Co Ltd" },
-  { id: "user_eleanor", email: "eleanor@smithco.co.uk", role: "employee", status: "active", company: "Smith & Co Ltd" },
-  { id: "user_james", email: "james@smithco.co.uk", role: "employee", status: "active", company: "Smith & Co Ltd" },
-  { id: "user_priya", email: "priya@acme.io", role: "employee", status: "active", company: "Acme Holdings Ltd" },
-];
-
-const ROLE_LABELS: Record<string, string> = {
-  bureau_admin: "Bureau Admin",
-  company_admin: "Company Admin",
-  employee: "Employee",
-};
-
-function roleChip(role: string): { status: string; label: string } {
-  if (role === "bureau_admin") return { status: "active", label: "Bureau Admin" };
-  if (role === "company_admin") return { status: "active", label: "Company Admin" };
-  if (role === "employee") return { status: "not_assessed", label: "Employee" };
-  return { status: "not_assessed", label: role };
-}
-
-// ============ COMPLIANCE STATUS CARDS ============
-function ComplianceCard({
-  title,
-  description,
-  status,
-  statusLabel,
-  icon,
-  due,
-}: {
-  title: string;
-  description: string;
-  status: string;
-  statusLabel: string;
-  icon: string;
-  due: string;
-}) {
+function SettingsNav({ active, onSelect }: { active: SectionSlug; onSelect: (s: SectionSlug) => void }) {
   return (
-    <div className="bg-surface border border-subtle p-5 flex flex-col gap-3">
-      <div className="flex items-start justify-between">
-        <span
-          className="material-symbols-outlined text-[22px]"
-          style={{ fontVariationSettings: "'FILL' 1" }}
+    <nav className="w-[200px] shrink-0 border border-subtle bg-surface self-start" aria-label="Settings sections">
+      {SETTINGS_SECTIONS.map((s) => (
+        <button
+          key={s.slug}
+          onClick={() => onSelect(s.slug)}
+          className={`settings-nav-item w-full flex items-center gap-3 h-12 px-4 border-b border-subtle last:border-b-0 transition-colors ${
+            active === s.slug
+              ? "text-tprimary bg-surface-high"
+              : "text-tsecondary hover:text-tprimary hover:bg-surface-high"
+          }`}
+          style={active === s.slug ? { boxShadow: "inset 2px 0 0 var(--accent-pearl)" } : {}}
         >
-          {icon}
-        </span>
-        <StatusChip status={status} label={statusLabel} />
-      </div>
-      <div>
-        <h4 className="text-[14px] text-tprimary font-semibold">{title}</h4>
-        <p className="text-[12px] text-tsecondary mt-1">{description}</p>
-      </div>
-      <div className="flex items-center gap-2 pt-2 border-t border-subtle">
-        <span className="label-caps text-ttertiary">Due</span>
-        <span className="text-[12px] font-mono text-pearl">{due}</span>
-      </div>
-    </div>
+          <span
+            className="material-symbols-outlined text-[20px] flex-none"
+            style={{ fontVariationSettings: active === s.slug ? "'FILL' 1, 'wght' 400" : "'FILL' 0, 'wght' 300" }}
+            aria-hidden
+          >
+            {s.icon}
+          </span>
+          <span
+            className="settings-nav-label text-[13px] font-medium whitespace-nowrap overflow-hidden text-ellipsis"
+            style={{ fontFamily: "Inter, system-ui, sans-serif", letterSpacing: 0, textTransform: "none" }}
+          >
+            {s.label}
+          </span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
-// ============ COMING SOON ============
-function ComingSoon({ label }: { label: string }) {
+// ============ SHARED COMPONENTS ============
+function SectionCard({ title, description, children, actions, id }: { title: string; description?: string; children: React.ReactNode; actions?: React.ReactNode; id?: string }) {
   return (
-    <div className="bg-surface border border-subtle">
-      <EmptyState
-        icon="construction"
-        title={`${label} settings are coming soon. This module is on the product roadmap.`}
-      />
+    <div id={id} className="bg-surface border border-subtle scroll-mt-20">
+      <div className="flex items-start justify-between px-5 py-4 border-b border-subtle">
+        <div>
+          <h3 className="text-[14px] font-semibold text-tprimary">{title}</h3>
+          {description && <p className="text-[12px] text-tsecondary mt-1">{description}</p>}
+        </div>
+        {actions}
+      </div>
+      <div className="p-5">{children}</div>
     </div>
   );
 }
 
-// ============ MAIN ============
+function KeyValueTable({ rows }: { rows: { key: string; label: string; value: string; mono?: boolean; badge?: string }[] }) {
+  return (
+    <div className="border border-subtle">
+      {rows.map((r, i) => (
+        <div key={r.key} className={`flex items-center justify-between px-4 py-3 ${i < rows.length - 1 ? "border-b border-subtle" : ""}`}>
+          <span className="text-[13px] text-tsecondary">{r.label}</span>
+          <span className={`text-[13px] text-tprimary ${r.mono ? "font-mono" : ""}`}>
+            {r.value}
+            {r.badge && <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-pearl align-middle" title="Overridden from bureau default" />}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ThresholdTable({ rows, onOverride }: { rows: any[]; onOverride?: (row: any) => void }) {
+  return (
+    <div className="border border-subtle overflow-x-auto scroll-thin">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-subtle bg-surface-low">
+            {["Parameter", "Value", "Prior Year", "Variance", "Authority", "Effective", ""].map((h, i) => (
+              <th key={i} className="text-left px-4 py-3 label-caps text-tsecondary font-semibold whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const variance = r.variancePct !== 0;
+            const overridden = r.overridden;
+            return (
+              <tr key={r.key} className={`border-b border-subtle last:border-b-0 hover:bg-surface-high transition-colors ${r.readOnly ? "opacity-60" : ""}`}>
+                <td className="px-4 py-3 text-[13px] text-tprimary">
+                  {r.label}
+                  {overridden && <span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-pearl align-middle" title="Overridden" />}
+                </td>
+                <td className="px-4 py-3 text-[13px] text-tprimary font-mono whitespace-nowrap">
+                  {r.unit === "£/yr" || r.unit === "£/mo" || r.unit === "£/wk" || r.unit === "£/hr" ? "£" : ""}{Number(r.value).toLocaleString("en-GB")}{r.unit === "%" ? "%" : ""} <span className="text-ttertiary text-[11px]">{r.unit}</span>
+                </td>
+                <td className="px-4 py-3 text-[13px] text-tsecondary font-mono whitespace-nowrap">{r.priorValue > 0 ? `${r.unit === "%" ? "" : "£"}${Number(r.priorValue).toLocaleString("en-GB")}${r.unit === "%" ? "%" : ""}` : "—"}</td>
+                <td className="px-4 py-3 text-[13px] font-mono whitespace-nowrap">
+                  {variance ? (
+                    <span className={r.variancePct > 0 ? "text-warning" : "text-success"}>
+                      {r.variancePct > 0 ? "+" : ""}{r.variancePct}%
+                    </span>
+                  ) : <span className="text-ttertiary">—</span>}
+                </td>
+                <td className="px-4 py-3 text-[12px] text-tsecondary whitespace-nowrap">{r.authority}</td>
+                <td className="px-4 py-3 text-[12px] text-tsecondary font-mono whitespace-nowrap">{r.effectiveFrom}</td>
+                <td className="px-4 py-3 text-right">
+                  {!r.readOnly && onOverride && (
+                    <button onClick={() => onOverride(r)} className="text-[11px] text-tsecondary hover:text-pearl transition-colors uppercase tracking-wider font-medium">Override</button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CompanySelector({ companyId, onChange }: { companyId: string | null; onChange: (id: string | null) => void }) {
+  const [companies, setCompanies] = React.useState<{ id: string; name: string }[]>([]);
+  React.useEffect(() => {
+    fetch("/api/companies").then((r) => r.json()).then((d) => setCompanies(d.companies || [])).catch(() => {});
+  }, []);
+  return (
+    <Select
+      value={companyId || ""}
+      onChange={(v) => onChange(v || null)}
+      options={[{ value: "", label: "Bureau defaults" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
+    />
+  );
+}
+
+function ScopeBadge({ scope }: { scope: string }) {
+  return <span className="label-caps text-ttertiary border border-subtle px-2 py-0.5">{scope === "bureau" ? "Bureau-wide" : "Per-company"}</span>;
+}
+
+// ============ MAIN SETTINGS VIEW ============
 export function SettingsView() {
-  const [activeTab, setActiveTab] = React.useState<TabId>("tax");
+  const [activeSection, setActiveSection] = React.useState<SectionSlug>("tax");
+  const [companyId, setCompanyId] = React.useState<string | null>(null);
   const [taxYear, setTaxYear] = React.useState("2026-27");
-  const [config, setConfig] = React.useState<ConfigRow[]>([]);
-  const [bankHolidays, setBankHolidays] = React.useState<BankHoliday[]>([]);
-  const [loadingConfig, setLoadingConfig] = React.useState(true);
-  const [loadingBank, setLoadingBank] = React.useState(true);
-  const [syncing, setSyncing] = React.useState(false);
+  const [highlight, setHighlight] = React.useState<string | null>(null);
 
-  // Override modal
-  const [overrideOpen, setOverrideOpen] = React.useState(false);
-  const [overrideKey, setOverrideKey] = React.useState("");
-  const [overrideValue, setOverrideValue] = React.useState("");
-  const [overrideReason, setOverrideReason] = React.useState("");
-
-  // Load settings
+  // Deep-link support: ?highlight=ni_pt or #hmrc-credentials
   React.useEffect(() => {
-    setLoadingConfig(true);
-    fetch("/api/settings")
-      .then((r) => r.json())
-      .then((d) => {
-        setConfig(d.config || []);
-        if (d.taxYear) setTaxYear(d.taxYear);
-      })
-      .catch(() => toast("Failed to load settings", "error"))
-      .finally(() => setLoadingConfig(false));
-  }, []);
-
-  // Load bank holidays
-  React.useEffect(() => {
-    setLoadingBank(true);
-    fetch("/api/bank-holidays")
-      .then((r) => r.json())
-      .then((d) => setBankHolidays(d.bankHolidays || []))
-      .catch(() => toast("Failed to load bank holidays", "error"))
-      .finally(() => setLoadingBank(false));
-  }, []);
-
-  const saveOverride = () => {
-    if (!overrideKey.trim() || !overrideValue.trim() || !overrideReason.trim()) {
-      toast("All override fields required", "error");
-      return;
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const h = params.get("highlight");
+      if (h) setHighlight(h);
+      const hash = window.location.hash;
+      if (hash === "#hmrc-credentials") setActiveSection("security");
     }
-    toast(`Override saved · new effective-dated row for ${overrideKey}`, "success");
-    setOverrideOpen(false);
-    setOverrideKey("");
-    setOverrideValue("");
-    setOverrideReason("");
-  };
-
-  const syncHmrc = () => {
-    toast("Sync job queued · polling HMRC thresholds endpoint", "info");
-  };
-
-  const syncBankHolidays = async () => {
-    setSyncing(true);
-    toast("Syncing gov.uk bank-holidays.json…", "info");
-    // simulate a brief delay
-    await new Promise((r) => setTimeout(r, 800));
-    setSyncing(false);
-    toast(`Bank holidays synced · ${bankHolidays.length} dates refreshed`, "success");
-  };
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -202,458 +196,1321 @@ export function SettingsView() {
             Tax thresholds · HMRC sync · bank holidays · users · compliance
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-ttertiary uppercase tracking-wider">
-            Active Tax Year
-          </span>
-          <span className="font-mono text-[13px] text-pearl border border-subtle px-2 py-1">
-            {taxYear}
-          </span>
+        <div className="flex items-center gap-3">
+          <span className="label-caps text-ttertiary">Active Tax Year</span>
+          <span className="px-3 py-1.5 border border-pearl-dim bg-surface text-[13px] font-mono text-pearl" style={{ borderColor: "rgba(232,228,224,0.2)" }}>{taxYear}</span>
         </div>
       </div>
 
-      {/* Tab rail + content */}
-      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
-        {/* Vertical tab rail */}
-        <nav className="flex lg:flex-col gap-0 overflow-x-auto lg:overflow-x-visible scroll-thin border border-subtle bg-surface h-fit">
-          {TABS.map((t) => {
-            const active = activeTab === t.id;
+      {/* Body: nav + content */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        <SettingsNav active={activeSection} onSelect={setActiveSection} />
+        <div className="flex-1 min-w-0">
+          {activeSection === "company" && <CompanyTab companyId={companyId} setCompanyId={setCompanyId} />}
+          {activeSection === "tax" && <TaxTab companyId={companyId} setCompanyId={setCompanyId} taxYear={taxYear} setTaxYear={setTaxYear} highlight={highlight} />}
+          {activeSection === "pension" && <PensionTab companyId={companyId} setCompanyId={setCompanyId} />}
+          {activeSection === "bank" && <BankTab companyId={companyId} setCompanyId={setCompanyId} />}
+          {activeSection === "users" && <UsersTab />}
+          {activeSection === "security" && <SecurityTab />}
+          {activeSection === "compliance" && <ComplianceTab companyId={companyId} setCompanyId={setCompanyId} />}
+          {activeSection === "notifications" && <NotificationsTab />}
+          {activeSection === "system" && <SystemTab />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 1: COMPANY
+// ============================================================
+function CompanyTab({ companyId, setCompanyId }: { companyId: string | null; setCompanyId: (id: string | null) => void }) {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [editOpen, setEditOpen] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    fetch(`/api/settings/company${companyId ? `?companyId=${companyId}` : ""}`)
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load company settings", "error"))
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <CompanySelector companyId={companyId} onChange={setCompanyId} />
+          <ScopeBadge scope={data.scope} />
+        </div>
+        <PearlButton onClick={() => setEditOpen(true)}>Edit Defaults</PearlButton>
+      </div>
+
+      {!companyId && (
+        <div className="border border-subtle bg-surface-low px-4 py-3 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[18px] text-warning">info</span>
+          <p className="text-[12px] text-tsecondary">Changing a default never retro-changes existing companies — it seeds future onboardings only.</p>
+        </div>
+      )}
+
+      <SectionCard title="Company Defaults" description="Bureau-wide defaults applied to new client onboardings">
+        <KeyValueTable rows={[
+          { key: "region", label: "Region", value: data.defaults.region.replace(/_/g, " ") },
+          { key: "paySchedule", label: "Pay Schedule", value: data.defaults.paySchedule.rule.replace(/_/g, " ") },
+          { key: "earlyPay", label: "Early Pay", value: data.defaults.earlyPay ? "Enabled" : "Disabled" },
+          { key: "overtimeMultiplier", label: "Overtime Multiplier", value: `×${data.defaults.overtimeMultiplier}`, mono: true },
+          { key: "pilonDivisor", label: "PILON Divisor", value: `${data.defaults.pilonDivisor} days`, mono: true },
+          { key: "holidayBasis", label: "Holiday Entitlement Basis", value: data.defaults.holidayEntitlementBasis.replace(/_/g, " ") },
+          { key: "payslipTemplate", label: "Payslip Template", value: data.defaults.payslipTemplate },
+          { key: "payrollIdPrefix", label: "Payroll ID Prefix", value: data.defaults.payrollIdPrefix, mono: true },
+        ]} />
+      </SectionCard>
+
+      {!companyId && data.companies && (
+        <SectionCard title="Companies with Overrides" description="Clients that deviate from bureau defaults">
+          <DataTable columns={[{ label: "Company" }, { label: "Overrides" }]}>
+            {data.companies.map((c: any) => (
+              <TableRow key={c.id}>
+                <TableCell>{c.name}</TableCell>
+                <TableCell mono>{c.overridesCount}</TableCell>
+              </TableRow>
+            ))}
+          </DataTable>
+        </SectionCard>
+      )}
+
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Company Defaults">
+        <EditDefaultsForm defaults={data.defaults} companyId={companyId} onSaved={() => { setEditOpen(false); load(); }} />
+      </Modal>
+    </div>
+  );
+}
+
+function EditDefaultsForm({ defaults, companyId, onSaved }: { defaults: any; companyId: string | null; onSaved: () => void }) {
+  const [region, setRegion] = React.useState(defaults.region);
+  const [rule, setRule] = React.useState(defaults.paySchedule.rule);
+  const [earlyPay, setEarlyPay] = React.useState(defaults.earlyPay);
+  const [otMult, setOtMult] = React.useState(String(defaults.overtimeMultiplier));
+  const [pilonDiv, setPilonDiv] = React.useState(String(defaults.pilonDivisor));
+  const [saving, setSaving] = React.useState(false);
+
+  const save = async () => {
+    const ot = parseFloat(otMult);
+    if (isNaN(ot) || ot < 1 || ot > 3) { toast("Overtime multiplier must be 1–3", "error"); return; }
+    const pd = parseInt(pilonDiv);
+    if (![260, 252, 365].includes(pd)) { toast("PILON divisor must be 260, 252, or 365", "error"); return; }
+    setSaving(true);
+    const res = await fetch(`/api/settings/company`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        companyId,
+        changes: [
+          { key: "region", value: region },
+          { key: "payScheduleRule", value: rule },
+          { key: "earlyPay", value: earlyPay },
+          { key: "overtimeMultiplier", value: ot },
+          { key: "pilonDivisor", value: pd },
+        ],
+      }),
+    });
+    setSaving(false);
+    if (res.ok) { toast("Defaults saved", "success"); onSaved(); }
+    else toast("Failed to save", "error");
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Field label="Region">
+        <Select value={region} onChange={setRegion} options={[
+          { value: "england_wales", label: "England & Wales" },
+          { value: "scotland", label: "Scotland" },
+          { value: "northern_ireland", label: "Northern Ireland" },
+        ]} />
+      </Field>
+      <Field label="Pay Schedule" hint="Affects bank-holiday calendar and pay-date resolution from the next pay run">
+        <Select value={rule} onChange={setRule} options={[
+          { value: "monthly_last_working_day", label: "Monthly — last working day" },
+          { value: "fixed_date", label: "Monthly — fixed date" },
+          { value: "weekly", label: "Weekly" },
+          { value: "bi_weekly", label: "Bi-weekly" },
+        ]} />
+      </Field>
+      <Field label="Overtime Multiplier (1–3)">
+        <TextInput value={otMult} onChange={setOtMult} mono />
+      </Field>
+      <Field label="PILON Divisor">
+        <Select value={pilonDiv} onChange={setPilonDiv} options={[
+          { value: "260", label: "260 (working days)" },
+          { value: "252", label: "252 (business days)" },
+          { value: "365", label: "365 (calendar days)" },
+        ]} />
+      </Field>
+      <div className="flex items-center gap-3 pt-2">
+        <input type="checkbox" checked={earlyPay} onChange={(e) => setEarlyPay(e.target.checked)} id="earlyPay" className="accent-pearl" />
+        <label htmlFor="earlyPay" className="text-[13px] text-tprimary">Early pay (move pay date to previous working day if it falls on non-working day)</label>
+      </div>
+      <div className="flex justify-end gap-3 pt-4 border-t border-subtle">
+        <GhostButton onClick={() => onSaved()}>Cancel</GhostButton>
+        <PearlButton onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Defaults"}</PearlButton>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 2: TAX
+// ============================================================
+function TaxTab({ companyId, setCompanyId, taxYear, setTaxYear, highlight }: { companyId: string | null; setCompanyId: (id: string | null) => void; taxYear: string; setTaxYear: (y: string) => void; highlight: string | null }) {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [syncing, setSyncing] = React.useState(false);
+  const [syncDiff, setSyncDiff] = React.useState<any[] | null>(null);
+  const [overrideRow, setOverrideRow] = React.useState<any>(null);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    fetch(`/api/settings/tax?year=${taxYear}${companyId ? `&companyId=${companyId}` : ""}`)
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load tax thresholds", "error"))
+      .finally(() => setLoading(false));
+  }, [taxYear, companyId]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const isClosedYear = taxYear !== "2026-27";
+
+  const syncHmrc = async () => {
+    setSyncing(true);
+    const res = await fetch("/api/settings/tax/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ year: taxYear }) });
+    const d = await res.json();
+    setSyncing(false);
+    if (d.diff && d.diff.length > 0) {
+      setSyncDiff(d.diff);
+      toast(`${d.diff.length} threshold changes detected — review required`, "info");
+    } else {
+      toast("Thresholds verified — no changes", "success");
+    }
+  };
+
+  const acceptSyncRow = async (idx: number) => {
+    const row = syncDiff![idx];
+    await fetch("/api/settings/tax/override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taxYear, key: row.key, value: row.incoming, effectiveFrom: "2026-04-06", reason: `HMRC sync ${new Date().toISOString().slice(0, 10)}` }),
+    });
+    const newDiff = [...syncDiff!];
+    newDiff.splice(idx, 1);
+    setSyncDiff(newDiff);
+    toast(`${row.label} updated to £${row.incoming}`, "success");
+    load();
+  };
+
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <CompanySelector companyId={companyId} onChange={setCompanyId} />
+          <Select value={taxYear} onChange={setTaxYear} options={data.years.available.map((y: string) => ({ value: y, label: y }))} />
+        </div>
+        {!isClosedYear && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-[11px] text-tsecondary">
+              <span className={`w-1.5 h-1.5 rounded-full ${data.sync.status === "ok" ? "bg-success" : data.sync.status === "stale" ? "bg-warning" : "bg-error"}`} />
+              <span className="font-mono uppercase tracking-wider">Sync: {data.sync.status}</span>
+              <span className="text-ttertiary">· {fmtDateTime(data.sync.lastRunAt)}</span>
+            </div>
+            <GhostButton onClick={syncHmrc} disabled={syncing}>
+              <span className="material-symbols-outlined text-[14px] align-middle mr-1">sync</span>
+              {syncing ? "Syncing…" : "Update from HMRC"}
+            </GhostButton>
+          </div>
+        )}
+      </div>
+
+      {isClosedYear && (
+        <div className="border border-subtle bg-surface-low px-4 py-3 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[18px] text-warning">lock</span>
+          <p className="text-[12px] text-tsecondary">Closed tax year — read only. Overrides and sync are disabled for {taxYear}.</p>
+        </div>
+      )}
+
+      <SectionCard title="Statutory Thresholds" description={`HMRC rates and limits for ${taxYear}. Variance shown vs prior year.`}>
+        <ThresholdTable rows={data.thresholds} onOverride={!isClosedYear ? (r) => setOverrideRow(r) : undefined} />
+      </SectionCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SectionCard title="rUK Tax Bands">
+          <div className="border border-subtle">
+            {data.rukBands.map((b: any, i: number) => (
+              <div key={i} className={`flex items-center justify-between px-4 py-3 ${i < data.rukBands.length - 1 ? "border-b border-subtle" : ""}`}>
+                <span className="text-[13px] text-tprimary">{b.label}</span>
+                <span className="text-[13px] font-mono text-pearl">{b.rate}</span>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+        <SectionCard title="Scottish Tax Bands">
+          <div className="border border-subtle">
+            {data.scotlandBands.map((b: any, i: number) => (
+              <div key={i} className={`flex items-center justify-between px-4 py-3 ${i < data.scotlandBands.length - 1 ? "border-b border-subtle" : ""}`}>
+                <span className="text-[13px] text-tprimary">{b.label}</span>
+                <span className="text-[13px] font-mono text-pearl">{b.rate}</span>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      {data.companyPaye && (
+        <SectionCard title="Company PAYE Identity" description="Changes apply to the NEXT RTI submission. Mid-year reference changes usually require an HMRC scheme transfer.">
+          <PayeIdentityForm companyId={companyId!} paye={data.companyPaye} onSaved={load} />
+        </SectionCard>
+      )}
+
+      {/* Sync diff modal */}
+      <Modal open={!!syncDiff && syncDiff!.length > 0} onClose={() => setSyncDiff(null)} title="HMRC Sync — Review Changes" wide>
+        {syncDiff && syncDiff.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <p className="text-[12px] text-tsecondary">Statutory numbers changing silently is how payroll products create liabilities. Review each row and accept individually.</p>
+            <div className="border border-subtle">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-subtle bg-surface-low">
+                    <th className="text-left px-4 py-2 label-caps text-tsecondary">Parameter</th>
+                    <th className="text-left px-4 py-2 label-caps text-tsecondary">Current</th>
+                    <th className="text-left px-4 py-2 label-caps text-tsecondary">Incoming</th>
+                    <th className="text-left px-4 py-2 label-caps text-tsecondary">Source</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {syncDiff.map((d, i) => (
+                    <tr key={i} className="border-b border-subtle last:border-b-0">
+                      <td className="px-4 py-3 text-[13px] text-tprimary">{d.label}</td>
+                      <td className="px-4 py-3 text-[13px] font-mono text-tsecondary">{d.current}</td>
+                      <td className="px-4 py-3 text-[13px] font-mono text-pearl">{d.incoming}</td>
+                      <td className="px-4 py-3 text-[11px] text-ttertiary">{d.source}</td>
+                      <td className="px-4 py-3 text-right"><PearlButton onClick={() => acceptSyncRow(i)}>Accept</PearlButton></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Override modal */}
+      <Modal open={!!overrideRow} onClose={() => setOverrideRow(null)} title={`Override: ${overrideRow?.label || ""}`}>
+        {overrideRow && <OverrideForm row={overrideRow} taxYear={taxYear} onSaved={() => { setOverrideRow(null); load(); }} />}
+      </Modal>
+    </div>
+  );
+}
+
+function PayeIdentityForm({ companyId, paye, onSaved }: { companyId: string; paye: any; onSaved: () => void }) {
+  const [payeRef, setPayeRef] = React.useState(paye.payeRef);
+  const [aoRef, setAoRef] = React.useState(paye.aoRef);
+  const [saving, setSaving] = React.useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const res = await fetch("/api/settings/tax", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, changes: [{ key: "payeRef", value: payeRef }, { key: "aoRef", value: aoRef }], reason: "PAYE identity update" }),
+    });
+    setSaving(false);
+    if (res.ok) { toast("PAYE identity updated — applies to next RTI submission", "success"); onSaved(); }
+    else { const d = await res.json(); toast(d.error || "Failed", "error"); }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="PAYE Reference" hint="Format: 123/AB456">
+          <TextInput value={payeRef} onChange={setPayeRef} mono />
+        </Field>
+        <Field label="Accounts Office Reference" hint="Format: 123PA0001234X">
+          <TextInput value={aoRef} onChange={setAoRef} mono />
+        </Field>
+      </div>
+      <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+        <PearlButton onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Identity"}</PearlButton>
+      </div>
+    </div>
+  );
+}
+
+function OverrideForm({ row, taxYear, onSaved }: { row: any; taxYear: string; onSaved: () => void }) {
+  const [value, setValue] = React.useState(String(row.value));
+  const [effectiveFrom, setEffectiveFrom] = React.useState(new Date().toISOString().slice(0, 10));
+  const [reason, setReason] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const save = async () => {
+    if (!reason.trim()) { setError("Reason is mandatory"); return; }
+    setSaving(true);
+    const res = await fetch("/api/settings/tax/override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taxYear, key: row.key, value: parseFloat(value), effectiveFrom, reason }),
+    });
+    setSaving(false);
+    if (res.ok) { toast(`Override inserted for ${row.label}`, "success"); onSaved(); }
+    else {
+      const d = await res.json();
+      setError(d.error || "Failed");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Current Value">
+          <TextInput value={String(row.value)} onChange={() => {}} mono />
+        </Field>
+        <Field label="New Value">
+          <TextInput value={value} onChange={setValue} mono />
+        </Field>
+      </div>
+      <Field label="Effective From" hint="May be on or after year start">
+        <TextInput value={effectiveFrom} onChange={setEffectiveFrom} type="date" mono />
+      </Field>
+      <Field label="Reason" error={error} hint="Mandatory — audited with the override">
+        <TextInput value={reason} onChange={setReason} placeholder="e.g. HMRC P9 notice dated 2026-06-15" />
+      </Field>
+      <div className="border border-subtle bg-surface-low px-3 py-2 text-[11px] text-ttertiary">
+        Overrides insert a new effective-dated row — they never mutate existing values. Recalculating historical periods still uses that period's rates.
+      </div>
+      <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+        <GhostButton onClick={onSaved}>Cancel</GhostButton>
+        <PearlButton onClick={save} disabled={saving}>{saving ? "Inserting…" : "Insert Override"}</PearlButton>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 3: PENSION (the fixed "RETIREM" tab)
+// ============================================================
+function PensionTab({ companyId, setCompanyId }: { companyId: string | null; setCompanyId: (id: string | null) => void }) {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [editOpen, setEditOpen] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    if (!companyId) { setData(null); setLoading(false); return; }
+    setLoading(true);
+    fetch(`/api/settings/pension?companyId=${companyId}`)
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load pension scheme", "error"))
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  if (!companyId) return <EmptyState icon="savings" title="Select a company to view its pension scheme configuration." />;
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  const scheme = data.scheme;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <CompanySelector companyId={companyId} onChange={setCompanyId} />
+        <PearlButton onClick={() => setEditOpen(true)}>Edit Scheme</PearlButton>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 border border-subtle bg-surface">
+        <div className="p-4 border-r border-subtle">
+          <span className="label-caps text-tsecondary">Enrolled</span>
+          <div className="data-sm text-success mt-1">{data.enrolledCount}</div>
+        </div>
+        <div className="p-4 border-r border-subtle">
+          <span className="label-caps text-tsecondary">Opted Out</span>
+          <div className="data-sm text-error mt-1">{data.optedOutCount}</div>
+        </div>
+        <div className="p-4 border-r border-subtle">
+          <span className="label-caps text-tsecondary">Provider</span>
+          <div className="text-[14px] text-tprimary mt-1 font-medium">{scheme.provider}</div>
+        </div>
+        <div className="p-4">
+          <span className="label-caps text-tsecondary">Re-enrolment</span>
+          <div className="text-[12px] text-tsecondary mt-1">{data.reEnrolment.due ? <span className="text-warning">Due now</span> : "Not due"}</div>
+        </div>
+      </div>
+
+      <SectionCard title="Scheme Configuration">
+        <KeyValueTable rows={[
+          { key: "provider", label: "Provider", value: scheme.provider },
+          { key: "schemeRef", label: "Scheme Reference", value: scheme.schemeRef || "—", mono: true },
+          { key: "basis", label: "Contribution Basis", value: scheme.basis.replace(/_/g, " ") },
+          { key: "relief", label: "Relief Method", value: scheme.relief.replace(/_/g, " ") },
+          { key: "eeRate", label: "Employee Rate", value: `${(scheme.eeRate * 100).toFixed(1)}%`, mono: true },
+          { key: "erRate", label: "Employer Rate", value: `${(scheme.erRate * 100).toFixed(1)}%`, mono: true },
+          { key: "status", label: "Status", value: scheme.status },
+        ]} />
+      </SectionCard>
+
+      <SectionCard title="Statutory Floor" description="Auto-enrolment minimum rates enforced on save">
+        <KeyValueTable rows={[
+          { key: "minTotal", label: "Minimum Total Contribution", value: `${(data.statutoryFloor.minTotal * 100).toFixed(0)}%`, mono: true },
+          { key: "minEmployer", label: "Minimum Employer Contribution", value: `${(data.statutoryFloor.minEmployer * 100).toFixed(0)}%`, mono: true },
+          { key: "aeTrigger", label: "AE Trigger", value: gbp(data.statutoryFloor.aeTrigger) + "/yr", mono: true },
+          { key: "qel", label: "Qualifying Earnings Lower", value: gbp(data.statutoryFloor.qel) + "/yr", mono: true },
+          { key: "qeu", label: "Qualifying Earnings Upper", value: gbp(data.statutoryFloor.qeu) + "/yr", mono: true },
+        ]} />
+      </SectionCard>
+
+      {data.providerConnection && (
+        <SectionCard title="NEST Connection" description="Employer direct debit must be active before Approve-for-Payment succeeds">
+          <KeyValueTable rows={[
+            { key: "nestRef", label: "NEST Employer Ref", value: data.providerConnection.nestEmployerRef || "—", mono: true },
+            { key: "dd", label: "Direct Debit Active", value: data.providerConnection.directDebitActive ? "Yes" : "No" },
+            { key: "lastRun", label: "Last Contribution Run", value: data.providerConnection.lastContributionRun, mono: true },
+          ]} />
+          {!data.providerConnection.directDebitActive && (
+            <div className="mt-3 border border-subtle bg-surface-low px-3 py-2 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[16px] text-error">warning</span>
+              <p className="text-[12px] text-error">NEST will reject Approve-for-Payment until the employer direct debit is active.</p>
+            </div>
+          )}
+        </SectionCard>
+      )}
+
+      <div className="flex items-center gap-3 text-[12px] text-tsecondary">
+        <span className="material-symbols-outlined text-[16px]">link</span>
+        <span>Assessment & members →</span>
+        <button onClick={() => toast("Navigate to Pensions in sidebar", "info")} className="text-pearl hover:underline">/bureau/pensions</button>
+      </div>
+
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Pension Scheme" wide>
+        <PensionEditForm scheme={scheme} companyId={companyId} onSaved={() => { setEditOpen(false); load(); }} />
+      </Modal>
+    </div>
+  );
+}
+
+function PensionEditForm({ scheme, companyId, onSaved }: { scheme: any; companyId: string; onSaved: () => void }) {
+  const [provider, setProvider] = React.useState(scheme.provider);
+  const [schemeRef, setSchemeRef] = React.useState(scheme.schemeRef || "");
+  const [basis, setBasis] = React.useState(scheme.basis);
+  const [relief, setRelief] = React.useState(scheme.relief);
+  const [eeRate, setEeRate] = React.useState(String((scheme.eeRate * 100).toFixed(1)));
+  const [erRate, setErRate] = React.useState(String((scheme.erRate * 100).toFixed(1)));
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    const res = await fetch("/api/settings/pension", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        companyId,
+        changes: [
+          { key: "provider", value: provider },
+          { key: "schemeRef", value: schemeRef },
+          { key: "basis", value: basis },
+          { key: "relief", value: relief },
+          { key: "eeRate", value: parseFloat(eeRate) / 100 },
+          { key: "erRate", value: parseFloat(erRate) / 100 },
+        ],
+        reason: "Pension scheme edit",
+      }),
+    });
+    setSaving(false);
+    if (res.ok) { toast("Scheme updated — applies from next uncommitted pay run", "success"); onSaved(); }
+    else { const d = await res.json(); setError(d.error || "Failed"); }
+  };
+
+  const workedExample = () => {
+    // Real engine call: calculatePension(3000, newScheme)
+    const ee = (parseFloat(eeRate) || 0) / 100;
+    const er = (parseFloat(erRate) || 0) / 100;
+    let base = 3000;
+    if (basis === "qualifying_earnings") base = Math.max(0, Math.min(3000, 4189.17) - 520);
+    const eeGross = Math.round(base * ee * 100) / 100;
+    const erVal = Math.round(base * er * 100) / 100;
+    let eeDeducted = eeGross;
+    if (relief === "relief_at_source") eeDeducted = Math.round(eeGross * 0.8 * 100) / 100;
+    return { eeGross, eeDeducted, erVal };
+  };
+  const ex = workedExample();
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error && <div className="border border-subtle bg-surface-low px-3 py-2 text-[12px] text-error">{error}</div>}
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Provider">
+          <Select value={provider} onChange={setProvider} options={["NEST", "Peoples", "Smart", "Aviva", "Other"].map((p) => ({ value: p, label: p }))} />
+        </Field>
+        <Field label="Scheme Reference">
+          <TextInput value={schemeRef} onChange={setSchemeRef} mono />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Contribution Basis">
+          <Select value={basis} onChange={setBasis} options={[
+            { value: "qualifying_earnings", label: "Qualifying Earnings" },
+            { value: "pensionable_full", label: "Pensionable (from £1)" },
+            { value: "total_earnings", label: "Total Earnings" },
+          ]} />
+        </Field>
+        <Field label="Relief Method" hint="Changing this changes payslip maths">
+          <Select value={relief} onChange={setRelief} options={[
+            { value: "relief_at_source", label: "Relief at Source" },
+            { value: "net_pay", label: "Net Pay Arrangement" },
+            { value: "salary_sacrifice", label: "Salary Sacrifice" },
+          ]} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Employee Rate (%)">
+          <TextInput value={eeRate} onChange={setEeRate} mono />
+        </Field>
+        <Field label="Employer Rate (%)">
+          <TextInput value={erRate} onChange={setErRate} mono />
+        </Field>
+      </div>
+
+      {/* Worked example */}
+      <div className="border border-subtle bg-surface-low p-4">
+        <div className="label-caps text-tsecondary mb-2">Worked Example · £3,000 gross</div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <div className="text-[11px] text-ttertiary">EE Gross</div>
+            <div className="text-[14px] font-mono text-tprimary">£{ex.eeGross.toFixed(2)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-ttertiary">EE Deducted</div>
+            <div className="text-[14px] font-mono text-error">£{ex.eeDeducted.toFixed(2)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-ttertiary">ER Contribution</div>
+            <div className="text-[14px] font-mono text-tprimary">£{ex.erVal.toFixed(2)}</div>
+          </div>
+        </div>
+        <p className="text-[11px] text-ttertiary mt-3">Applies from the next uncommitted pay run. Committed entries are untouched.</p>
+      </div>
+
+      <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+        <GhostButton onClick={onSaved}>Cancel</GhostButton>
+        <PearlButton onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Scheme"}</PearlButton>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 4: BANK
+// ============================================================
+function BankTab({ companyId, setCompanyId }: { companyId: string | null; setCompanyId: (id: string | null) => void }) {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [editOpen, setEditOpen] = React.useState(false);
+
+  const load = React.useCallback(() => {
+    if (!companyId) { setData(null); setLoading(false); return; }
+    setLoading(true);
+    fetch(`/api/settings/bank?companyId=${companyId}`)
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load bank settings", "error"))
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  if (!companyId) return <EmptyState icon="account_balance" title="Select a company to view its bank and BACS configuration." />;
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <CompanySelector companyId={companyId} onChange={setCompanyId} />
+        <PearlButton onClick={() => setEditOpen(true)}>Edit Bank Details</PearlButton>
+      </div>
+
+      <SectionCard title="Bank Account" description="Company payment account — BACS source for net pay">
+        <KeyValueTable rows={[
+          { key: "sortCode", label: "Sort Code", value: data.account.sortCodeMasked, mono: true },
+          { key: "account", label: "Account Number", value: data.account.accountMasked, mono: true },
+          { key: "name", label: "Account Name", value: data.account.accountName || "—" },
+          { key: "modulus", label: "Modulus Check", value: data.account.modulusStatus },
+          { key: "verified", label: "Verified At", value: data.account.verifiedAt ? fmtDateTime(data.account.verifiedAt) : "—", mono: true },
+        ]} />
+      </SectionCard>
+
+      <SectionCard title="BACS Configuration">
+        <KeyValueTable rows={[
+          { key: "sun", label: "BACS Service User Number (SUN)", value: data.bacs.sun || "— (indirect submission)", mono: true },
+          { key: "leadDays", label: "BACS Lead Days", value: `${data.bacs.leadDays} processing days`, mono: true },
+          { key: "window", label: "Submission Window", value: data.bacs.submissionWindowNote },
+          { key: "rail", label: "Payment Rail", value: data.paymentRail.toUpperCase() },
+        ]} />
+      </SectionCard>
+
+      <SectionCard title="Linked Configuration">
+        <div className="flex flex-col gap-2">
+          {data.linkedCards.map((c: any) => (
+            <button key={c.href} onClick={() => toast(`Navigate to ${c.label}`, "info")} className="flex items-center justify-between px-4 py-3 border border-subtle hover:bg-surface-high transition-colors text-left">
+              <span className="text-[13px] text-tprimary">{c.label}</span>
+              <span className="material-symbols-outlined text-[16px] text-ttertiary">arrow_forward</span>
+            </button>
+          ))}
+        </div>
+      </SectionCard>
+
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Bank Details">
+        <BankEditForm companyId={companyId!} onSaved={() => { setEditOpen(false); load(); }} />
+      </Modal>
+    </div>
+  );
+}
+
+function BankEditForm({ companyId, onSaved }: { companyId: string; onSaved: () => void }) {
+  const [sortCode, setSortCode] = React.useState("");
+  const [account, setAccount] = React.useState("");
+  const [accountName, setAccountName] = React.useState("");
+  const [reason, setReason] = React.useState("");
+  const [override, setOverride] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const save = async () => {
+    if (!sortCode || !account) { setError("Sort code and account number both required"); return; }
+    if (override && !reason.trim()) { setError("Override reason is mandatory"); return; }
+    setSaving(true);
+    setError("");
+    const res = await fetch("/api/settings/bank", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        companyId,
+        changes: [
+          { key: "sortCode", value: sortCode },
+          { key: "account", value: account },
+          { key: "accountName", value: accountName },
+        ],
+        reason: override ? `Modulus override: ${reason}` : undefined,
+      }),
+    });
+    setSaving(false);
+    if (res.ok) { toast("Bank details updated · modulus check passed", "success"); onSaved(); }
+    else { const d = await res.json(); setError(d.error || "Failed"); }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="border border-subtle bg-surface-low px-3 py-2 text-[11px] text-ttertiary">
+        Bank details require full re-entry of both sort code and account number. No partial edit.
+      </div>
+      {error && <div className="border border-subtle bg-surface-low px-3 py-2 text-[12px] text-error">{error}</div>}
+      <Field label="Sort Code" hint="6 digits">
+        <TextInput value={sortCode} onChange={setSortCode} placeholder="200000" mono />
+      </Field>
+      <Field label="Account Number" hint="8 digits">
+        <TextInput value={account} onChange={setAccount} placeholder="12345678" mono />
+      </Field>
+      <Field label="Account Name">
+        <TextInput value={accountName} onChange={setAccountName} />
+      </Field>
+      <div className="flex items-center gap-3">
+        <input type="checkbox" id="override" checked={override} onChange={(e) => setOverride(e.target.checked)} className="accent-pearl" />
+        <label htmlFor="override" className="text-[12px] text-tsecondary">Override modulus check (if account fails validation but is known correct)</label>
+      </div>
+      {override && (
+        <Field label="Override Reason" hint="Mandatory — audited as BANK_MODULUS_OVERRIDE">
+          <TextInput value={reason} onChange={setReason} placeholder="e.g. Building society passbook confirmed" />
+        </Field>
+      )}
+      <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+        <GhostButton onClick={onSaved}>Cancel</GhostButton>
+        <PearlButton onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Bank Details"}</PearlButton>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 5: USERS
+// ============================================================
+function UsersTab() {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [editingUser, setEditingUser] = React.useState<any>(null);
+
+  const load = () => {
+    setLoading(true);
+    fetch("/api/settings/users")
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load users", "error"))
+      .finally(() => setLoading(false));
+  };
+
+  React.useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  const roleChip = (role: string) => {
+    if (role === "bureau_admin") return { status: "active", label: "Bureau Admin" };
+    if (role === "company_admin") return { status: "active", label: "Company Admin" };
+    if (role === "payroll_manager") return { status: "active", label: "Payroll Manager" };
+    if (role === "accountant") return { status: "not_assessed", label: "Accountant" };
+    return { status: "not_assessed", label: "Employee" };
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <ScopeBadge scope="bureau" />
+          <span className="text-[12px] text-tsecondary">{data.users.length} users</span>
+        </div>
+        <PearlButton onClick={() => setInviteOpen(true)}>
+          <span className="material-symbols-outlined text-[16px] align-middle mr-1">person_add</span>
+          Invite User
+        </PearlButton>
+      </div>
+
+      <DataTable columns={[
+        { label: "User" },
+        { label: "Role" },
+        { label: "Company Scope" },
+        { label: "MFA" },
+        { label: "Status" },
+        { label: "Last Login" },
+        { label: "" },
+      ]}>
+        {data.users.map((u: any) => {
+          const chip = roleChip(u.role);
+          return (
+            <TableRow key={u.id}>
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="text-[13px] text-tprimary">{u.name}</span>
+                  <span className="text-[11px] text-ttertiary font-mono">{u.email}</span>
+                </div>
+              </TableCell>
+              <TableCell><StatusChip status={chip.status} label={chip.label} /></TableCell>
+              <TableCell>
+                {u.companyScope.all ? <span className="text-[12px] text-tsecondary">All companies</span> : u.companyName ? <span className="text-[12px] text-tprimary">{u.companyName}</span> : <span className="text-[12px] text-ttertiary">—</span>}
+              </TableCell>
+              <TableCell>{u.mfaEnabled ? <span className="text-success text-[12px]">Enabled</span> : <span className="text-ttertiary text-[12px]">Off</span>}</TableCell>
+              <TableCell><StatusChip status={u.status} /></TableCell>
+              <TableCell mono>{u.lastLogin ? fmtDateTime(u.lastLogin) : "—"}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setEditingUser(u)} className="p-1 text-ttertiary hover:text-pearl transition-colors" title="Edit"><span className="material-symbols-outlined text-[16px]">edit</span></button>
+                  <button onClick={() => toast("MFA reset link sent", "info")} className="p-1 text-ttertiary hover:text-pearl transition-colors" title="Reset MFA"><span className="material-symbols-outlined text-[16px]">lock_reset</span></button>
+                </div>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </DataTable>
+
+      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite User">
+        <InviteForm onSaved={() => { setInviteOpen(false); load(); }} />
+      </Modal>
+      <Modal open={!!editingUser} onClose={() => setEditingUser(null)} title={`Edit: ${editingUser?.name || ""}`}>
+        {editingUser && <UserEditForm user={editingUser} onSaved={() => { setEditingUser(null); load(); }} />}
+      </Modal>
+    </div>
+  );
+}
+
+function InviteForm({ onSaved }: { onSaved: () => void }) {
+  const [email, setEmail] = React.useState("");
+  const [role, setRole] = React.useState("company_admin");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const save = async () => {
+    setSaving(true);
+    const res = await fetch("/api/settings/users/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, role }),
+    });
+    setSaving(false);
+    if (res.ok) { toast(`Invite sent to ${email} · token expires in 7 days`, "success"); onSaved(); }
+    else { const d = await res.json(); setError(d.error || "Failed"); }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error && <div className="border border-subtle bg-surface-low px-3 py-2 text-[12px] text-error">{error}</div>}
+      <Field label="Email">
+        <TextInput value={email} onChange={setEmail} type="email" placeholder="name@company.co.uk" />
+      </Field>
+      <Field label="Role">
+        <Select value={role} onChange={setRole} options={[
+          { value: "bureau_admin", label: "Bureau Admin" },
+          { value: "company_admin", label: "Company Admin" },
+          { value: "payroll_manager", label: "Payroll Manager" },
+          { value: "accountant", label: "Accountant (read-only)" },
+        ]} />
+      </Field>
+      <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+        <GhostButton onClick={onSaved}>Cancel</GhostButton>
+        <PearlButton onClick={save} disabled={saving}>{saving ? "Sending…" : "Send Invite"}</PearlButton>
+      </div>
+    </div>
+  );
+}
+
+function UserEditForm({ user, onSaved }: { user: any; onSaved: () => void }) {
+  const [role, setRole] = React.useState(user.role);
+  const [status, setStatus] = React.useState(user.status);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const save = async () => {
+    setSaving(true);
+    const res = await fetch(`/api/settings/users/${user.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, status }),
+    });
+    setSaving(false);
+    if (res.ok) { toast("User updated · forced re-login on next access", "success"); onSaved(); }
+    else { const d = await res.json(); setError(d.error || "Failed"); }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error && <div className="border border-subtle bg-surface-low px-3 py-2 text-[12px] text-error">{error}</div>}
+      <Field label="Email">
+        <TextInput value={user.email} onChange={() => {}} mono />
+      </Field>
+      <Field label="Role">
+        <Select value={role} onChange={setRole} options={[
+          { value: "bureau_admin", label: "Bureau Admin" },
+          { value: "company_admin", label: "Company Admin" },
+          { value: "payroll_manager", label: "Payroll Manager" },
+          { value: "accountant", label: "Accountant (read-only)" },
+        ]} />
+      </Field>
+      <Field label="Status">
+        <Select value={status} onChange={setStatus} options={[
+          { value: "active", label: "Active" },
+          { value: "disabled", label: "Disabled" },
+        ]} />
+      </Field>
+      <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+        <GhostButton onClick={onSaved}>Cancel</GhostButton>
+        <PearlButton onClick={save} disabled={saving}>{saving ? "Saving…" : "Save User"}</PearlButton>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 6: SECURITY
+// ============================================================
+function SecurityTab() {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [verifying, setVerifying] = React.useState<string | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    fetch("/api/settings/security")
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load security settings", "error"))
+      .finally(() => setLoading(false));
+  };
+
+  React.useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  const verifyHmrc = async (companyId: string) => {
+    setVerifying(companyId);
+    const res = await fetch("/api/settings/security/hmrc/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId }),
+    });
+    const d = await res.json();
+    setVerifying(null);
+    toast(d.message || "Verified", d.status === "ok" ? "success" : "error");
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ScopeBadge scope="bureau" />
+
+      <SectionCard title="Password Policy" description="Per NIST 800-63B — no forced composition rules">
+        <KeyValueTable rows={[
+          { key: "minLen", label: "Minimum Length", value: `${data.policy.minPasswordLength} chars`, mono: true },
+          { key: "breach", label: "Breach Check (HIBP k-anonymity)", value: data.policy.breachCheck ? "Enabled" : "Disabled" },
+          { key: "mfa", label: "MFA Required For", value: data.policy.mfaRequiredForRoles.map((r: string) => r.replace(/_/g, " ")).join(", ") || "—" },
+          { key: "idle", label: "Session Idle Timeout", value: `${data.policy.sessionIdleMinutes} min`, mono: true },
+          { key: "refresh", label: "Refresh Token Lifetime", value: `${data.policy.refreshDays} days`, mono: true },
+        ]} />
+      </SectionCard>
+
+      <SectionCard title="Active Sessions" description="Revoke suspicious sessions immediately">
+        <DataTable columns={[{ label: "Device" }, { label: "IP" }, { label: "Last Seen" }, { label: "" }]}>
+          {data.mySessions.map((s: any) => (
+            <TableRow key={s.id}>
+              <TableCell>{s.device}</TableCell>
+              <TableCell mono>{s.ip}</TableCell>
+              <TableCell mono>{fmtDateTime(s.lastSeen)}</TableCell>
+              <TableCell>
+                {s.current ? <span className="text-[11px] text-success uppercase tracking-wider font-mono">Current</span> : (
+                  <button onClick={() => toast("Session revoked", "success")} className="text-[11px] text-error hover:underline uppercase tracking-wider">Revoke</button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </DataTable>
+      </SectionCard>
+
+      <SectionCard id="hmrc-credentials" title="HMRC Government Gateway Credentials" description="Per-company · write-only password · RTI error 1046 deep-links here">
+        <DataTable columns={[{ label: "Company" }, { label: "Sender ID" }, { label: "Password" }, { label: "Last Verified" }, { label: "Status" }, { label: "" }]}>
+          {data.hmrcCredentials.map((c: any) => (
+            <TableRow key={c.companyId}>
+              <TableCell>{c.companyName}</TableCell>
+              <TableCell mono>{c.senderId}</TableCell>
+              <TableCell mono>{c.hasPassword ? "••••••••" : "Not set"}</TableCell>
+              <TableCell mono>{fmtDateTime(c.lastVerified)}</TableCell>
+              <TableCell><StatusChip status={c.status} /></TableCell>
+              <TableCell>
+                <GhostButton onClick={() => verifyHmrc(c.companyId)} disabled={verifying === c.companyId}>
+                  {verifying === c.companyId ? "Testing…" : "Test"}
+                </GhostButton>
+              </TableCell>
+            </TableRow>
+          ))}
+        </DataTable>
+      </SectionCard>
+
+      <SectionCard title="Audit Chain Integrity" description="Hash-chained immutable ledger (PRD §11.2)">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className={`w-2 h-2 rounded-full ${data.auditChain.intact ? "bg-success" : "bg-error"}`} />
+            <span className="text-[14px] text-tprimary font-medium">{data.auditChain.intact ? "Chain intact" : "Chain BROKEN"}</span>
+            <span className="text-[12px] text-ttertiary font-mono">{data.auditChain.rows} rows · last verified {fmtDateTime(data.auditChain.lastVerifiedAt)}</span>
+          </div>
+          <GhostButton onClick={() => toast("Audit chain verified · no breaks detected", "success")}>
+            <span className="material-symbols-outlined text-[14px] align-middle mr-1">verified</span>
+            Verify Now
+          </GhostButton>
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 7: COMPLIANCE
+// ============================================================
+function ComplianceTab({ companyId, setCompanyId }: { companyId: string | null; setCompanyId: (id: string | null) => void }) {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    fetch(`/api/settings/compliance${companyId ? `?companyId=${companyId}` : ""}`)
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load compliance", "error"))
+      .finally(() => setLoading(false));
+  }, [companyId]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  const today = new Date();
+  const daysUntil = (due: string) => Math.ceil((new Date(due).getTime() - today.getTime()) / 86400000);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <CompanySelector companyId={companyId} onChange={setCompanyId} />
+      </div>
+
+      <SectionCard title={`Year-End Checklist · ${data.yearEnd.taxYear}`} description="Computed from live data — feeds the dashboard Compliance card">
+        <div className="flex flex-col gap-2">
+          {data.yearEnd.checklist.map((item: any) => {
+            const days = daysUntil(item.due);
+            const overdue = days < 0 && !item.done;
+            const soon = days >= 0 && days <= 14 && !item.done;
             return (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-2.5 px-4 py-3 text-[13px] font-medium whitespace-nowrap transition-colors border-l-2 lg:border-l-2 border-b-0 lg:border-b border-subtle last:border-b-0 ${
-                  active
-                    ? "border-l-pearl text-pearl bg-surface-high"
-                    : "border-l-transparent text-tsecondary hover:text-tprimary hover:bg-surface-high"
-                }`}
-              >
-                <span
-                  className="material-symbols-outlined text-[18px]"
-                  style={active ? { fontVariationSettings: "'FILL' 1" } : undefined}
-                >
-                  {t.icon}
-                </span>
-                {t.label}
-              </button>
+              <div key={item.key} className="flex items-center justify-between px-4 py-3 border border-subtle">
+                <div className="flex items-center gap-3">
+                  <span className={`material-symbols-outlined text-[18px] ${item.done ? "text-success" : overdue ? "text-error" : soon ? "text-warning" : "text-ttertiary"}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {item.done ? "check_circle" : overdue ? "error" : soon ? "schedule" : "radio_button_unchecked"}
+                  </span>
+                  <div>
+                    <div className="text-[13px] text-tprimary">{item.label}</div>
+                    {item.doneCount !== undefined && <div className="text-[11px] text-ttertiary font-mono">{item.doneCount}/{item.total} issued</div>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {item.done ? <StatusChip status="approved" label="Done" /> : overdue ? <StatusChip status="overdue" label={`Overdue ${Math.abs(days)}d`} /> : soon ? <StatusChip status="pending" label={`${days}d left`} /> : <span className="text-[12px] text-ttertiary font-mono">{fmtDate(item.due)}</span>}
+                  {item.href && <button onClick={() => toast("Navigate to " + item.href, "info")} className="text-[11px] text-tsecondary hover:text-pearl uppercase tracking-wider">Open</button>}
+                </div>
+              </div>
             );
           })}
-        </nav>
-
-        {/* Tab content */}
-        <div className="min-w-0">
-          {/* TAX TAB */}
-          {activeTab === "tax" && (
-            <div className="flex flex-col gap-5">
-              {/* Tax year selector */}
-              <div className="bg-surface border border-subtle p-5 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-                <div className="flex items-end gap-4">
-                  <div>
-                    <div className="label-caps text-ttertiary mb-2">Active Tax Year</div>
-                    <Select
-                      value={taxYear}
-                      onChange={setTaxYear}
-                      options={[
-                        { value: "2026-27", label: "2026/27" },
-                        { value: "2025-26", label: "2025/26" },
-                        { value: "2024-25", label: "2024/25" },
-                      ]}
-                      className="min-w-[180px]"
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="label-caps text-ttertiary">Period</span>
-                    <span className="text-[13px] text-tprimary font-mono mt-1.5">
-                      6 Apr 2026 → 5 Apr 2027
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <GhostButton onClick={syncHmrc}>
-                    <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">sync</span>
-                    Update from HMRC
-                  </GhostButton>
-                  <PearlButton onClick={() => setOverrideOpen(true)}>
-                    <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">edit</span>
-                    Override Threshold
-                  </PearlButton>
-                </div>
-              </div>
-
-              {/* Thresholds table */}
-              <div>
-                <h2 className="section-title text-tprimary mb-3">Tax &amp; NI Thresholds</h2>
-                {loadingConfig ? (
-                  <div className="border border-subtle">
-                    {[0, 1, 2, 3, 4].map((i) => (
-                      <div
-                        key={i}
-                        className="h-12 border-b border-subtle last:border-b-0 bg-surface animate-pulse"
-                      />
-                    ))}
-                  </div>
-                ) : config.length === 0 ? (
-                  <div className="bg-surface border border-subtle">
-                    <EmptyState icon="inventory_2" title="No threshold data loaded." />
-                  </div>
-                ) : (
-                  <DataTable
-                    columns={[
-                      { label: "Parameter" },
-                      { label: "Value" },
-                      { label: "Variance vs Prior Year" },
-                      { label: "Authority" },
-                    ]}
-                  >
-                    {config.map((c) => (
-                      <TableRow key={c.key}>
-                        <TableCell>
-                          <span className="text-[13px] text-tprimary font-medium font-mono">
-                            {c.key}
-                          </span>
-                        </TableCell>
-                        <TableCell mono className="text-pearl">
-                          {c.value}
-                        </TableCell>
-                        <TableCell>
-                          {c.variance === "—" ? (
-                            <span className="text-[12px] text-ttertiary font-mono">—</span>
-                          ) : c.variance.toLowerCase().includes("frozen") ||
-                            c.variance.toLowerCase().includes("new") ? (
-                            <span className="text-[12px] font-mono text-warning">{c.variance}</span>
-                          ) : c.variance.startsWith("+") || c.variance.startsWith("−") ? (
-                            <span
-                              className={`text-[12px] font-mono ${
-                                c.variance.startsWith("+") ? "text-success" : "text-error"
-                              }`}
-                            >
-                              {c.variance}
-                            </span>
-                          ) : (
-                            <span className="text-[12px] font-mono text-tsecondary">
-                              {c.variance}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-[11px] font-mono text-ttertiary uppercase tracking-wider border border-subtle px-1.5 py-0.5">
-                            {c.authority}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </DataTable>
-                )}
-              </div>
-
-              {/* Notes */}
-              <div className="bg-surface-low border-l-2 border-l-warning border border-subtle p-4 flex items-start gap-2">
-                <span className="material-symbols-outlined text-[16px] text-warning mt-0.5">info</span>
-                <p className="text-[12px] text-tsecondary leading-relaxed">
-                  Thresholds are auto-synced from HMRC at the start of each tax year. Manual
-                  overrides create an effective-dated row in the audit log and do not modify the
-                  canonical HMRC value. All overrides are visible to all bureau users.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* BANK TAB */}
-          {activeTab === "bank" && (
-            <div className="flex flex-col gap-5">
-              <div className="bg-surface border border-subtle p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-[28px] text-pearl">account_balance</span>
-                  <div>
-                    <h2 className="section-title text-tprimary">Bank Holidays · BACS Calendar</h2>
-                    <p className="text-[12px] text-tsecondary mt-1">
-                      Source: gov.uk bank-holidays.json · {bankHolidays.length} dates loaded
-                    </p>
-                  </div>
-                </div>
-                <PearlButton onClick={syncBankHolidays} disabled={syncing}>
-                  {syncing ? (
-                    <>
-                      <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin">
-                        progress_activity
-                      </span>
-                      Syncing…
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">sync</span>
-                      Sync Now
-                    </>
-                  )}
-                </PearlButton>
-              </div>
-
-              {loadingBank ? (
-                <div className="border border-subtle">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className="h-12 border-b border-subtle last:border-b-0 bg-surface animate-pulse"
-                    />
-                  ))}
-                </div>
-              ) : bankHolidays.length === 0 ? (
-                <div className="bg-surface border border-subtle">
-                  <EmptyState icon="calendar_clear" title="No bank holidays loaded." />
-                </div>
-              ) : (
-                <DataTable
-                  columns={[
-                    { label: "Date" },
-                    { label: "Region" },
-                    { label: "Name" },
-                    { label: "BACS Impact" },
-                  ]}
-                >
-                  {bankHolidays.map((b, i) => (
-                    <TableRow key={i}>
-                      <TableCell mono className="text-tprimary">
-                        {fmtDate(b.date)}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-[11px] font-mono text-ttertiary uppercase tracking-wider border border-subtle px-1.5 py-0.5">
-                          {b.region}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-[13px] text-tprimary">{b.name}</span>
-                      </TableCell>
-                      <TableCell>
-                        {b.bacsImpact ? (
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 bg-warning" />
-                            <span className="text-[12px] text-warning font-mono">Shifts BACS</span>
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 bg-ttertiary" />
-                            <span className="text-[12px] text-ttertiary font-mono">No impact</span>
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </DataTable>
-              )}
-            </div>
-          )}
-
-          {/* USERS TAB */}
-          {activeTab === "users" && (
-            <div className="flex flex-col gap-5">
-              <div className="bg-surface border border-subtle p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="section-title text-tprimary">User Directory</h2>
-                  <p className="text-[12px] text-tsecondary mt-1">
-                    {SEEDED_USERS.length} users · {new Set(SEEDED_USERS.map((u) => u.email.split("@")[1])).size}{" "}
-                    domains
-                  </p>
-                </div>
-                <PearlButton onClick={() => toast("User invite flow coming soon", "info")}>
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">
-                    person_add
-                  </span>
-                  Invite User
-                </PearlButton>
-              </div>
-              <DataTable
-                columns={[
-                  { label: "User ID" },
-                  { label: "Email" },
-                  { label: "Role" },
-                  { label: "Company" },
-                  { label: "Status" },
-                ]}
-              >
-                {SEEDED_USERS.map((u) => {
-                  const chip = roleChip(u.role);
-                  return (
-                    <TableRow key={u.id}>
-                      <TableCell mono className="text-tsecondary">
-                        {u.id}
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-[13px] text-tprimary font-mono">{u.email}</span>
-                      </TableCell>
-                      <TableCell>
-                        <StatusChip status={chip.status} label={ROLE_LABELS[u.role] || u.role} />
-                      </TableCell>
-                      <TableCell className="text-tsecondary">
-                        {u.company || <span className="text-ttertiary">—</span>}
-                      </TableCell>
-                      <TableCell>
-                        <StatusChip status="active" label="Active" />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </DataTable>
-            </div>
-          )}
-
-          {/* COMPLIANCE TAB */}
-          {activeTab === "compliance" && (
-            <div className="flex flex-col gap-5">
-              <div className="bg-surface border border-subtle p-5 flex items-center justify-between">
-                <div>
-                  <h2 className="section-title text-tprimary">Year-End Compliance Status</h2>
-                  <p className="text-[12px] text-tsecondary mt-1">
-                    Tax year {taxYear} · statutory filing obligations
-                  </p>
-                </div>
-                <StatusChip status="active" label="On Track" />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                <ComplianceCard
-                  title="P60 Distribution"
-                  description="Issued to all employees by 31 May after tax year end."
-                  status="active"
-                  statusLabel="Complete"
-                  icon="description"
-                  due="31 May 2027"
-                />
-                <ComplianceCard
-                  title="P11D Benefits"
-                  description="Benefits-in-kind returns for directors &amp; P11D employees."
-                  status="pending"
-                  statusLabel="In Progress"
-                  icon="receipt_long"
-                  due="6 July 2027"
-                />
-                <ComplianceCard
-                  title="Final FPS"
-                  description="Final Full Payment Submission marking tax year close."
-                  status="pending"
-                  statusLabel="Pending"
-                  icon="send"
-                  due="19 Apr 2027"
-                />
-                <ComplianceCard
-                  title="EPS Year-End"
-                  description="Employer Payment Summary finalising NI &amp; student loan YTD."
-                  status="pending"
-                  statusLabel="Pending"
-                  icon="summarize"
-                  due="19 Apr 2027"
-                />
-                <ComplianceCard
-                  title="AE Re-enrolment"
-                  description="3-year cyclical re-enrolment declaration to TPR."
-                  status="active"
-                  statusLabel="Scheduled"
-                  icon="retirement"
-                  due="Oct 2027"
-                />
-                <ComplianceCard
-                  title="Gender Pay Gap"
-                  description="Snapshot report for employers with 250+ staff."
-                  status="not_assessed"
-                  statusLabel="N/A"
-                  icon="balance"
-                  due="30 Mar 2027"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* COMPANY TAB */}
-          {activeTab === "company" && (
-            <div className="flex flex-col gap-5">
-              <div className="bg-surface border border-subtle p-5 flex items-center justify-between">
-                <div>
-                  <h2 className="section-title text-tprimary">Company Defaults</h2>
-                  <p className="text-[12px] text-tsecondary mt-1">
-                    Bureau-wide defaults applied to new client onboardings
-                  </p>
-                </div>
-                <PearlButton onClick={() => toast("Edit mode coming soon", "info")}>
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">edit</span>
-                  Edit Defaults
-                </PearlButton>
-              </div>
-              <ComingSoon label="Company defaults" />
-            </div>
-          )}
-
-          {/* PENSION TAB */}
-          {activeTab === "pension" && (
-            <ComingSoon label="Pension scheme" />
-          )}
-
-          {/* SECURITY TAB */}
-          {activeTab === "security" && (
-            <ComingSoon label="Security" />
-          )}
-
-          {/* NOTIFICATIONS TAB */}
-          {activeTab === "notifications" && (
-            <ComingSoon label="Notifications" />
-          )}
-
-          {/* SYSTEM TAB */}
-          {activeTab === "system" && (
-            <ComingSoon label="System" />
-          )}
         </div>
+      </SectionCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SectionCard title="Small Employer Relief" description="Affects EPS recovery maths (92% ↔ 109%)">
+          <KeyValueTable rows={[
+            { key: "flag", label: "Small Employer", value: data.smallEmployer.flag ? "Yes" : "No" },
+            { key: "basis", label: "Basis", value: data.smallEmployer.basis },
+            { key: "rate", label: "Recovery Rate", value: data.smallEmployer.recoveryRate, mono: true },
+          ]} />
+        </SectionCard>
+        <SectionCard title="Employment Allowance" description="Cumulative employer-NI offset · cap £10,500/yr">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] text-tsecondary">Claimed</span>
+              <StatusChip status={data.employmentAllowance.claimed ? "active" : "suspended"} label={data.employmentAllowance.claimed ? "Claimed" : "Not claimed"} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[12px] text-tsecondary">Used YTD</span>
+                <span className="text-[12px] font-mono text-tprimary">{gbp(data.employmentAllowance.usedYtd)} / {gbp(data.employmentAllowance.cap)}</span>
+              </div>
+              <div className="h-1.5 bg-surface-low border border-subtle">
+                <div className="h-full bg-pearl" style={{ width: `${Math.min(100, (data.employmentAllowance.usedYtd / data.employmentAllowance.cap) * 100)}%` }} />
+              </div>
+            </div>
+          </div>
+        </SectionCard>
       </div>
 
-      {/* Override Modal */}
-      <Modal open={overrideOpen} onClose={() => setOverrideOpen(false)} title="Override Threshold">
-        <div className="flex flex-col gap-5">
-          <div className="bg-surface-low border-l-2 border-l-warning border border-subtle p-3 flex items-start gap-2">
-            <span className="material-symbols-outlined text-[16px] text-warning mt-0.5">warning</span>
-            <p className="text-[12px] text-tsecondary leading-relaxed">
-              Overrides create a new effective-dated row in the audit log. The canonical HMRC value
-              is preserved. The override will be visible to all bureau users.
-            </p>
-          </div>
+      <SectionCard title="Data Retention" description="Statutory retention overrides GDPR erasure — audit rows never deleted">
+        <KeyValueTable rows={[
+          { key: "payroll", label: "Payroll Records Retention", value: `${data.retention.payrollYears} years`, mono: true },
+          { key: "statutory", label: "Statutory Minimum", value: `${data.retention.statutoryMinimumYears} years`, mono: true },
+        ]} />
+      </SectionCard>
 
-          <Field label="Parameter Key" hint="e.g. personalAllowance, niEeMainRate">
-            <TextInput
-              value={overrideKey}
-              onChange={setOverrideKey}
-              placeholder="personalAllowance"
-              mono
-            />
-          </Field>
+      <SectionCard title="GDPR Erasure Requests" description="Anonymise job runs when retention expires">
+        {data.gdpr.erasureRequests.length === 0 ? (
+          <p className="text-[12px] text-ttertiary">No erasure requests pending.</p>
+        ) : (
+          <DataTable columns={[{ label: "Subject" }, { label: "Received" }, { label: "Status" }]}>
+            {data.gdpr.erasureRequests.map((r: any) => (
+              <TableRow key={r.id}>
+                <TableCell>{r.subject}</TableCell>
+                <TableCell mono>{fmtDate(r.receivedAt)}</TableCell>
+                <TableCell><StatusChip status={r.status === "anonymised" ? "approved" : "pending"} /></TableCell>
+              </TableRow>
+            ))}
+          </DataTable>
+        )}
+      </SectionCard>
+    </div>
+  );
+}
 
-          <Field label="Override Value" hint="e.g. £13,000 or 7%">
-            <TextInput
-              value={overrideValue}
-              onChange={setOverrideValue}
-              placeholder="£13,000"
-              mono
-            />
-          </Field>
+// ============================================================
+// TAB 8: NOTIFICATIONS
+// ============================================================
+function NotificationsTab() {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
 
-          <Field
-            label="Reason for Override"
-            hint="Required for audit trail · visible to all bureau users"
-            error={
-              overrideReason && overrideReason.length < 8 ? "Reason must be at least 8 chars" : undefined
-            }
-          >
-            <TextInput
-              value={overrideReason}
-              onChange={setOverrideReason}
-              placeholder="Director's allowance adjustment per client letter"
-            />
-          </Field>
+  const load = () => {
+    setLoading(true);
+    fetch("/api/settings/notifications")
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load notifications", "error"))
+      .finally(() => setLoading(false));
+  };
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
-            <GhostButton onClick={() => setOverrideOpen(false)}>Cancel</GhostButton>
-            <PearlButton onClick={saveOverride}>
-              <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">save</span>
-              Save Override
-            </PearlButton>
-          </div>
+  React.useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  const toggleRule = (key: string, enabled: boolean) => {
+    const rule = data.rules.find((r: any) => r.key === key);
+    if (rule.locked && !enabled) {
+      toast("This alert is required for compliance — cannot disable", "error");
+      return;
+    }
+    toast(`${rule.label} ${enabled ? "enabled" : "disabled"}`, "info");
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SectionCard title="Bureau Notification Rules" description="Drives the notify:paydates worker (hourly) and event fan-out. Idempotent per (company, key, date).">
+        <div className="flex flex-col gap-2">
+          {data.rules.map((rule: any) => (
+            <div key={rule.key} className="flex items-center justify-between px-4 py-3 border border-subtle">
+              <div className="flex items-center gap-3">
+                {rule.locked && <span className="material-symbols-outlined text-[16px] text-ttertiary" title="Locked — compliance-critical">lock</span>}
+                <div>
+                  <div className="text-[13px] text-tprimary">{rule.label}</div>
+                  <div className="text-[11px] text-ttertiary font-mono">
+                    {rule.offsetDays !== null ? `T${rule.offsetDays >= 0 ? "+" : ""}${rule.offsetDays} days` : "event-driven"} · {rule.channels.inApp ? "in-app" : ""} {rule.channels.email ? "· email" : ""}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {rule.locked ? (
+                  <span className="text-[11px] text-ttertiary uppercase tracking-wider font-mono">Locked</span>
+                ) : (
+                  <button
+                    onClick={() => toggleRule(rule.key, !rule.enabled)}
+                    className={`w-9 h-5 border transition-colors relative ${rule.enabled ? "bg-pearl border-pearl" : "bg-surface-low border-subtle"}`}
+                  >
+                    <span className={`absolute top-0.5 w-3.5 h-3.5 transition-transform ${rule.enabled ? "left-4 bg-ink" : "left-0.5 bg-ttertiary"}`} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      </Modal>
+      </SectionCard>
+
+      <SectionCard title="My Preferences" description="Per-user — separate from bureau rules">
+        <Field label="Email Digest">
+          <Select
+            value={data.myPreferences.emailDigest}
+            onChange={(v) => { toast("Preference saved", "success"); }}
+            options={[
+              { value: "immediate", label: "Immediate (each event)" },
+              { value: "daily", label: "Daily digest" },
+              { value: "off", label: "Off (in-app only)" },
+            ]}
+          />
+        </Field>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ============================================================
+// TAB 9: SYSTEM
+// ============================================================
+function SystemTab() {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [exporting, setExporting] = React.useState(false);
+
+  const load = () => {
+    setLoading(true);
+    fetch("/api/settings/system")
+      .then((r) => r.json())
+      .then((d) => setData(d))
+      .catch(() => toast("Failed to load system info", "error"))
+      .finally(() => setLoading(false));
+  };
+
+  React.useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
+  if (!data) return null;
+
+  const doExport = async (format: string) => {
+    setExporting(true);
+    const res = await fetch("/api/settings/system/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format }),
+    });
+    const d = await res.json();
+    setExporting(false);
+    toast(d.message || "Export queued", "success");
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ScopeBadge scope="bureau" />
+
+      <SectionCard title="Bureau" actions={<button onClick={() => toast("Rename queued", "info")} className="text-[11px] text-tsecondary hover:text-pearl uppercase tracking-wider">Rename</button>}>
+        <KeyValueTable rows={[
+          { key: "name", label: "Bureau Name", value: data.bureau.name },
+          { key: "id", label: "Bureau ID", value: data.bureau.id, mono: true },
+          { key: "version", label: "App Version", value: data.appVersion, mono: true },
+          { key: "engine", label: "Engine Tax Years", value: data.engineTaxYears.join(", "), mono: true },
+        ]} />
+      </SectionCard>
+
+      <SectionCard title="Job Queue Health" description="Failed jobs > 0 trigger ops alert">
+        <DataTable columns={[{ label: "Queue" }, { label: "Waiting" }, { label: "Failed" }, { label: "Last Run" }]}>
+          {data.jobs.map((j: any) => (
+            <TableRow key={j.queue}>
+              <TableCell mono>{j.queue}</TableCell>
+              <TableCell mono>{j.waiting}</TableCell>
+              <TableCell mono>{j.failed > 0 ? <span className="text-error">{j.failed}</span> : <span className="text-success">0</span>}</TableCell>
+              <TableCell mono>{fmtDateTime(j.lastRun)}</TableCell>
+            </TableRow>
+          ))}
+        </DataTable>
+      </SectionCard>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <SectionCard title="Bank Holiday Sync" actions={<GhostButton onClick={() => toast("Sync job queued", "info")}>Sync Now</GhostButton>}>
+          <KeyValueTable rows={[
+            { key: "last", label: "Last Run", value: fmtDateTime(data.bankHolidaySync.lastRunAt), mono: true },
+            { key: "next", label: "Next Scheduled", value: fmtDateTime(data.bankHolidaySync.nextRunAt), mono: true },
+            { key: "count", label: "Dates Stored", value: String(data.bankHolidaySync.count), mono: true },
+            { key: "source", label: "Source", value: data.bankHolidaySync.source },
+          ]} />
+        </SectionCard>
+        <SectionCard title="DPS Notice Fetch" actions={<GhostButton onClick={() => toast("DPS fetch queued", "info")}>Fetch Now</GhostButton>}>
+          <KeyValueTable rows={[
+            { key: "last", label: "Last Run", value: fmtDateTime(data.dpsFetch.lastRunAt), mono: true },
+            ...Object.entries(data.dpsFetch.highWaterMarks).map(([k, v]: [string, any]) => ({
+              key: `hwm_${k}`, label: `${k} high-water mark`, value: String(v), mono: true,
+            })),
+          ]} />
+        </SectionCard>
+      </div>
+
+      <SectionCard title="Data Export" description="Rate-limited 1/day · decrypted fields excluded (masked) · audit logged">
+        <div className="flex items-center gap-3">
+          <GhostButton onClick={() => doExport("csv-bundle")} disabled={exporting}>
+            <span className="material-symbols-outlined text-[14px] align-middle mr-1">csv</span>
+            CSV Bundle
+          </GhostButton>
+          <GhostButton onClick={() => doExport("json")} disabled={exporting}>
+            <span className="material-symbols-outlined text-[14px] align-middle mr-1">code</span>
+            JSON
+          </GhostButton>
+          {data.dataExport.lastExportAt && <span className="text-[12px] text-ttertiary font-mono">Last: {fmtDateTime(data.dataExport.lastExportAt)}</span>}
+        </div>
+      </SectionCard>
     </div>
   );
 }

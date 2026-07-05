@@ -1,0 +1,660 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import * as React from "react";
+     4→     4→import { fmtDate } from "@/store/app";
+     5→     5→import {
+     6→     6→  DataTable,
+     7→     7→  TableRow,
+     8→     8→  TableCell,
+     9→     9→  StatusChip,
+    10→    10→  EmptyState,
+    11→    11→  PearlButton,
+    12→    12→  GhostButton,
+    13→    13→  Field,
+    14→    14→  TextInput,
+    15→    15→  Select,
+    16→    16→  Modal,
+    17→    17→  toast,
+    18→    18→} from "@/components/kedbyte/primitives";
+    19→    19→
+    20→    20→// ============ TYPES ============
+    21→    21→interface ConfigRow {
+    22→    22→  key: string;
+    23→    23→  value: string;
+    24→    24→  variance: string;
+    25→    25→  authority: string;
+    26→    26→}
+    27→    27→
+    28→    28→interface BankHoliday {
+    29→    29→  date: string;
+    30→    30→  region: string;
+    31→    31→  name: string;
+    32→    32→  bacsImpact: boolean;
+    33→    33→}
+    34→    34→
+    35→    35→interface SeededUser {
+    36→    36→  id: string;
+    37→    37→  email: string;
+    38→    38→  role: string;
+    39→    39→  status: string;
+    40→    40→  company?: string;
+    41→    41→}
+    42→    42→
+    43→    43→// ============ TABS ============
+    44→    44→const TABS = [
+    45→    45→  { id: "company", label: "Company", icon: "business" },
+    46→    46→  { id: "tax", label: "Tax", icon: "percent" },
+    47→    47→  { id: "pension", label: "Pension", icon: "retirement" },
+    48→    48→  { id: "bank", label: "Bank", icon: "account_balance" },
+    49→    49→  { id: "users", label: "Users", icon: "group" },
+    50→    50→  { id: "security", label: "Security", icon: "lock" },
+    51→    51→  { id: "compliance", label: "Compliance", icon: "verified" },
+    52→    52→  { id: "notifications", label: "Notifications", icon: "notifications" },
+    53→    53→  { id: "system", label: "System", icon: "settings" },
+    54→    54→] as const;
+    55→    55→
+    56→    56→type TabId = (typeof TABS)[number]["id"];
+    57→    57→
+    58→    58→// ============ SEEDED USERS (static) ============
+    59→    59→const SEEDED_USERS: SeededUser[] = [
+    60→    60→  { id: "user_admin", email: "admin@kedbyte.co.uk", role: "bureau_admin", status: "active" },
+    61→    61→  { id: "user_smith_admin", email: "admin@smithco.co.uk", role: "company_admin", status: "active", company: "Smith & Co Ltd" },
+    62→    62→  { id: "user_eleanor", email: "eleanor@smithco.co.uk", role: "employee", status: "active", company: "Smith & Co Ltd" },
+    63→    63→  { id: "user_james", email: "james@smithco.co.uk", role: "employee", status: "active", company: "Smith & Co Ltd" },
+    64→    64→  { id: "user_priya", email: "priya@acme.io", role: "employee", status: "active", company: "Acme Holdings Ltd" },
+    65→    65→];
+    66→    66→
+    67→    67→const ROLE_LABELS: Record<string, string> = {
+    68→    68→  bureau_admin: "Bureau Admin",
+    69→    69→  company_admin: "Company Admin",
+    70→    70→  employee: "Employee",
+    71→    71→};
+    72→    72→
+    73→    73→function roleChip(role: string): { status: string; label: string } {
+    74→    74→  if (role === "bureau_admin") return { status: "active", label: "Bureau Admin" };
+    75→    75→  if (role === "company_admin") return { status: "active", label: "Company Admin" };
+    76→    76→  if (role === "employee") return { status: "not_assessed", label: "Employee" };
+    77→    77→  return { status: "not_assessed", label: role };
+    78→    78→}
+    79→    79→
+    80→    80→// ============ COMPLIANCE STATUS CARDS ============
+    81→    81→function ComplianceCard({
+    82→    82→  title,
+    83→    83→  description,
+    84→    84→  status,
+    85→    85→  statusLabel,
+    86→    86→  icon,
+    87→    87→  due,
+    88→    88→}: {
+    89→    89→  title: string;
+    90→    90→  description: string;
+    91→    91→  status: string;
+    92→    92→  statusLabel: string;
+    93→    93→  icon: string;
+    94→    94→  due: string;
+    95→    95→}) {
+    96→    96→  return (
+    97→    97→    <div className="bg-surface border border-subtle p-5 flex flex-col gap-3">
+    98→    98→      <div className="flex items-start justify-between">
+    99→    99→        <span
+   100→   100→          className="material-symbols-outlined text-[22px]"
+   101→   101→          style={{ fontVariationSettings: "'FILL' 1" }}
+   102→   102→        >
+   103→   103→          {icon}
+   104→   104→        </span>
+   105→   105→        <StatusChip status={status} label={statusLabel} />
+   106→   106→      </div>
+   107→   107→      <div>
+   108→   108→        <h4 className="text-[14px] text-tprimary font-semibold">{title}</h4>
+   109→   109→        <p className="text-[12px] text-tsecondary mt-1">{description}</p>
+   110→   110→      </div>
+   111→   111→      <div className="flex items-center gap-2 pt-2 border-t border-subtle">
+   112→   112→        <span className="label-caps text-ttertiary">Due</span>
+   113→   113→        <span className="text-[12px] font-mono text-pearl">{due}</span>
+   114→   114→      </div>
+   115→   115→    </div>
+   116→   116→  );
+   117→   117→}
+   118→   118→
+   119→   119→// ============ COMING SOON ============
+   120→   120→function ComingSoon({ label }: { label: string }) {
+   121→   121→  return (
+   122→   122→    <div className="bg-surface border border-subtle">
+   123→   123→      <EmptyState
+   124→   124→        icon="construction"
+   125→   125→        title={`${label} settings are coming soon. This module is on the product roadmap.`}
+   126→   126→      />
+   127→   127→    </div>
+   128→   128→  );
+   129→   129→}
+   130→   130→
+   131→   131→// ============ MAIN ============
+   132→   132→export function SettingsView() {
+   133→   133→  const [activeTab, setActiveTab] = React.useState<TabId>("tax");
+   134→   134→  const [taxYear, setTaxYear] = React.useState("2026-27");
+   135→   135→  const [config, setConfig] = React.useState<ConfigRow[]>([]);
+   136→   136→  const [bankHolidays, setBankHolidays] = React.useState<BankHoliday[]>([]);
+   137→   137→  const [loadingConfig, setLoadingConfig] = React.useState(true);
+   138→   138→  const [loadingBank, setLoadingBank] = React.useState(true);
+   139→   139→  const [syncing, setSyncing] = React.useState(false);
+   140→   140→
+   141→   141→  // Override modal
+   142→   142→  const [overrideOpen, setOverrideOpen] = React.useState(false);
+   143→   143→  const [overrideKey, setOverrideKey] = React.useState("");
+   144→   144→  const [overrideValue, setOverrideValue] = React.useState("");
+   145→   145→  const [overrideReason, setOverrideReason] = React.useState("");
+   146→   146→
+   147→   147→  // Load settings
+   148→   148→  React.useEffect(() => {
+   149→   149→    setLoadingConfig(true);
+   150→   150→    fetch("/api/settings")
+   151→   151→      .then((r) => r.json())
+   152→   152→      .then((d) => {
+   153→   153→        setConfig(d.config || []);
+   154→   154→        if (d.taxYear) setTaxYear(d.taxYear);
+   155→   155→      })
+   156→   156→      .catch(() => toast("Failed to load settings", "error"))
+   157→   157→      .finally(() => setLoadingConfig(false));
+   158→   158→  }, []);
+   159→   159→
+   160→   160→  // Load bank holidays
+   161→   161→  React.useEffect(() => {
+   162→   162→    setLoadingBank(true);
+   163→   163→    fetch("/api/bank-holidays")
+   164→   164→      .then((r) => r.json())
+   165→   165→      .then((d) => setBankHolidays(d.bankHolidays || []))
+   166→   166→      .catch(() => toast("Failed to load bank holidays", "error"))
+   167→   167→      .finally(() => setLoadingBank(false));
+   168→   168→  }, []);
+   169→   169→
+   170→   170→  const saveOverride = () => {
+   171→   171→    if (!overrideKey.trim() || !overrideValue.trim() || !overrideReason.trim()) {
+   172→   172→      toast("All override fields required", "error");
+   173→   173→      return;
+   174→   174→    }
+   175→   175→    toast(`Override saved · new effective-dated row for ${overrideKey}`, "success");
+   176→   176→    setOverrideOpen(false);
+   177→   177→    setOverrideKey("");
+   178→   178→    setOverrideValue("");
+   179→   179→    setOverrideReason("");
+   180→   180→  };
+   181→   181→
+   182→   182→  const syncHmrc = () => {
+   183→   183→    toast("Sync job queued · polling HMRC thresholds endpoint", "info");
+   184→   184→  };
+   185→   185→
+   186→   186→  const syncBankHolidays = async () => {
+   187→   187→    setSyncing(true);
+   188→   188→    toast("Syncing gov.uk bank-holidays.json…", "info");
+   189→   189→    // simulate a brief delay
+   190→   190→    await new Promise((r) => setTimeout(r, 800));
+   191→   191→    setSyncing(false);
+   192→   192→    toast(`Bank holidays synced · ${bankHolidays.length} dates refreshed`, "success");
+   193→   193→  };
+   194→   194→
+   195→   195→  return (
+   196→   196→    <div className="flex flex-col gap-6">
+   197→   197→      {/* Header */}
+   198→   198→      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+   199→   199→        <div>
+   200→   200→          <h1 className="page-title text-tprimary">Settings</h1>
+   201→   201→          <p className="text-[13px] text-tsecondary mt-1">
+   202→   202→            Tax thresholds · HMRC sync · bank holidays · users · compliance
+   203→   203→          </p>
+   204→   204→        </div>
+   205→   205→        <div className="flex items-center gap-2">
+   206→   206→          <span className="text-[11px] font-mono text-ttertiary uppercase tracking-wider">
+   207→   207→            Active Tax Year
+   208→   208→          </span>
+   209→   209→          <span className="font-mono text-[13px] text-pearl border border-subtle px-2 py-1">
+   210→   210→            {taxYear}
+   211→   211→          </span>
+   212→   212→        </div>
+   213→   213→      </div>
+   214→   214→
+   215→   215→      {/* Tab rail + content */}
+   216→   216→      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
+   217→   217→        {/* Vertical tab rail */}
+   218→   218→        <nav className="flex lg:flex-col gap-0 overflow-x-auto lg:overflow-x-visible scroll-thin border border-subtle bg-surface h-fit">
+   219→   219→          {TABS.map((t) => {
+   220→   220→            const active = activeTab === t.id;
+   221→   221→            return (
+   222→   222→              <button
+   223→   223→                key={t.id}
+   224→   224→                onClick={() => setActiveTab(t.id)}
+   225→   225→                className={`flex items-center gap-2.5 px-4 py-3 text-[13px] font-medium whitespace-nowrap transition-colors border-l-2 lg:border-l-2 border-b-0 lg:border-b border-subtle last:border-b-0 ${
+   226→   226→                  active
+   227→   227→                    ? "border-l-pearl text-pearl bg-surface-high"
+   228→   228→                    : "border-l-transparent text-tsecondary hover:text-tprimary hover:bg-surface-high"
+   229→   229→                }`}
+   230→   230→              >
+   231→   231→                <span
+   232→   232→                  className="material-symbols-outlined text-[18px]"
+   233→   233→                  style={active ? { fontVariationSettings: "'FILL' 1" } : undefined}
+   234→   234→                >
+   235→   235→                  {t.icon}
+   236→   236→                </span>
+   237→   237→                {t.label}
+   238→   238→              </button>
+   239→   239→            );
+   240→   240→          })}
+   241→   241→        </nav>
+   242→   242→
+   243→   243→        {/* Tab content */}
+   244→   244→        <div className="min-w-0">
+   245→   245→          {/* TAX TAB */}
+   246→   246→          {activeTab === "tax" && (
+   247→   247→            <div className="flex flex-col gap-5">
+   248→   248→              {/* Tax year selector */}
+   249→   249→              <div className="bg-surface border border-subtle p-5 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+   250→   250→                <div className="flex items-end gap-4">
+   251→   251→                  <div>
+   252→   252→                    <div className="label-caps text-ttertiary mb-2">Active Tax Year</div>
+   253→   253→                    <Select
+   254→   254→                      value={taxYear}
+   255→   255→                      onChange={setTaxYear}
+   256→   256→                      options={[
+   257→   257→                        { value: "2026-27", label: "2026/27" },
+   258→   258→                        { value: "2025-26", label: "2025/26" },
+   259→   259→                        { value: "2024-25", label: "2024/25" },
+   260→   260→                      ]}
+   261→   261→                      className="min-w-[180px]"
+   262→   262→                    />
+   263→   263→                  </div>
+   264→   264→                  <div className="flex flex-col">
+   265→   265→                    <span className="label-caps text-ttertiary">Period</span>
+   266→   266→                    <span className="text-[13px] text-tprimary font-mono mt-1.5">
+   267→   267→                      6 Apr 2026 → 5 Apr 2027
+   268→   268→                    </span>
+   269→   269→                  </div>
+   270→   270→                </div>
+   271→   271→                <div className="flex items-center gap-2">
+   272→   272→                  <GhostButton onClick={syncHmrc}>
+   273→   273→                    <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">sync</span>
+   274→   274→                    Update from HMRC
+   275→   275→                  </GhostButton>
+   276→   276→                  <PearlButton onClick={() => setOverrideOpen(true)}>
+   277→   277→                    <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">edit</span>
+   278→   278→                    Override Threshold
+   279→   279→                  </PearlButton>
+   280→   280→                </div>
+   281→   281→              </div>
+   282→   282→
+   283→   283→              {/* Thresholds table */}
+   284→   284→              <div>
+   285→   285→                <h2 className="section-title text-tprimary mb-3">Tax &amp; NI Thresholds</h2>
+   286→   286→                {loadingConfig ? (
+   287→   287→                  <div className="border border-subtle">
+   288→   288→                    {[0, 1, 2, 3, 4].map((i) => (
+   289→   289→                      <div
+   290→   290→                        key={i}
+   291→   291→                        className="h-12 border-b border-subtle last:border-b-0 bg-surface animate-pulse"
+   292→   292→                      />
+   293→   293→                    ))}
+   294→   294→                  </div>
+   295→   295→                ) : config.length === 0 ? (
+   296→   296→                  <div className="bg-surface border border-subtle">
+   297→   297→                    <EmptyState icon="inventory_2" title="No threshold data loaded." />
+   298→   298→                  </div>
+   299→   299→                ) : (
+   300→   300→                  <DataTable
+   301→   301→                    columns={[
+   302→   302→                      { label: "Parameter" },
+   303→   303→                      { label: "Value" },
+   304→   304→                      { label: "Variance vs Prior Year" },
+   305→   305→                      { label: "Authority" },
+   306→   306→                    ]}
+   307→   307→                  >
+   308→   308→                    {config.map((c) => (
+   309→   309→                      <TableRow key={c.key}>
+   310→   310→                        <TableCell>
+   311→   311→                          <span className="text-[13px] text-tprimary font-medium font-mono">
+   312→   312→                            {c.key}
+   313→   313→                          </span>
+   314→   314→                        </TableCell>
+   315→   315→                        <TableCell mono className="text-pearl">
+   316→   316→                          {c.value}
+   317→   317→                        </TableCell>
+   318→   318→                        <TableCell>
+   319→   319→                          {c.variance === "—" ? (
+   320→   320→                            <span className="text-[12px] text-ttertiary font-mono">—</span>
+   321→   321→                          ) : c.variance.toLowerCase().includes("frozen") ||
+   322→   322→                            c.variance.toLowerCase().includes("new") ? (
+   323→   323→                            <span className="text-[12px] font-mono text-warning">{c.variance}</span>
+   324→   324→                          ) : c.variance.startsWith("+") || c.variance.startsWith("−") ? (
+   325→   325→                            <span
+   326→   326→                              className={`text-[12px] font-mono ${
+   327→   327→                                c.variance.startsWith("+") ? "text-success" : "text-error"
+   328→   328→                              }`}
+   329→   329→                            >
+   330→   330→                              {c.variance}
+   331→   331→                            </span>
+   332→   332→                          ) : (
+   333→   333→                            <span className="text-[12px] font-mono text-tsecondary">
+   334→   334→                              {c.variance}
+   335→   335→                            </span>
+   336→   336→                          )}
+   337→   337→                        </TableCell>
+   338→   338→                        <TableCell>
+   339→   339→                          <span className="text-[11px] font-mono text-ttertiary uppercase tracking-wider border border-subtle px-1.5 py-0.5">
+   340→   340→                            {c.authority}
+   341→   341→                          </span>
+   342→   342→                        </TableCell>
+   343→   343→                      </TableRow>
+   344→   344→                    ))}
+   345→   345→                  </DataTable>
+   346→   346→                )}
+   347→   347→              </div>
+   348→   348→
+   349→   349→              {/* Notes */}
+   350→   350→              <div className="bg-surface-low border-l-2 border-l-warning border border-subtle p-4 flex items-start gap-2">
+   351→   351→                <span className="material-symbols-outlined text-[16px] text-warning mt-0.5">info</span>
+   352→   352→                <p className="text-[12px] text-tsecondary leading-relaxed">
+   353→   353→                  Thresholds are auto-synced from HMRC at the start of each tax year. Manual
+   354→   354→                  overrides create an effective-dated row in the audit log and do not modify the
+   355→   355→                  canonical HMRC value. All overrides are visible to all bureau users.
+   356→   356→                </p>
+   357→   357→              </div>
+   358→   358→            </div>
+   359→   359→          )}
+   360→   360→
+   361→   361→          {/* BANK TAB */}
+   362→   362→          {activeTab === "bank" && (
+   363→   363→            <div className="flex flex-col gap-5">
+   364→   364→              <div className="bg-surface border border-subtle p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+   365→   365→                <div className="flex items-center gap-3">
+   366→   366→                  <span className="material-symbols-outlined text-[28px] text-pearl">account_balance</span>
+   367→   367→                  <div>
+   368→   368→                    <h2 className="section-title text-tprimary">Bank Holidays · BACS Calendar</h2>
+   369→   369→                    <p className="text-[12px] text-tsecondary mt-1">
+   370→   370→                      Source: gov.uk bank-holidays.json · {bankHolidays.length} dates loaded
+   371→   371→                    </p>
+   372→   372→                  </div>
+   373→   373→                </div>
+   374→   374→                <PearlButton onClick={syncBankHolidays} disabled={syncing}>
+   375→   375→                  {syncing ? (
+   376→   376→                    <>
+   377→   377→                      <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin">
+   378→   378→                        progress_activity
+   379→   379→                      </span>
+   380→   380→                      Syncing…
+   381→   381→                    </>
+   382→   382→                  ) : (
+   383→   383→                    <>
+   384→   384→                      <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">sync</span>
+   385→   385→                      Sync Now
+   386→   386→                    </>
+   387→   387→                  )}
+   388→   388→                </PearlButton>
+   389→   389→              </div>
+   390→   390→
+   391→   391→              {loadingBank ? (
+   392→   392→                <div className="border border-subtle">
+   393→   393→                  {[0, 1, 2, 3, 4].map((i) => (
+   394→   394→                    <div
+   395→   395→                      key={i}
+   396→   396→                      className="h-12 border-b border-subtle last:border-b-0 bg-surface animate-pulse"
+   397→   397→                    />
+   398→   398→                  ))}
+   399→   399→                </div>
+   400→   400→              ) : bankHolidays.length === 0 ? (
+   401→   401→                <div className="bg-surface border border-subtle">
+   402→   402→                  <EmptyState icon="calendar_clear" title="No bank holidays loaded." />
+   403→   403→                </div>
+   404→   404→              ) : (
+   405→   405→                <DataTable
+   406→   406→                  columns={[
+   407→   407→                    { label: "Date" },
+   408→   408→                    { label: "Region" },
+   409→   409→                    { label: "Name" },
+   410→   410→                    { label: "BACS Impact" },
+   411→   411→                  ]}
+   412→   412→                >
+   413→   413→                  {bankHolidays.map((b, i) => (
+   414→   414→                    <TableRow key={i}>
+   415→   415→                      <TableCell mono className="text-tprimary">
+   416→   416→                        {fmtDate(b.date)}
+   417→   417→                      </TableCell>
+   418→   418→                      <TableCell>
+   419→   419→                        <span className="text-[11px] font-mono text-ttertiary uppercase tracking-wider border border-subtle px-1.5 py-0.5">
+   420→   420→                          {b.region}
+   421→   421→                        </span>
+   422→   422→                      </TableCell>
+   423→   423→                      <TableCell>
+   424→   424→                        <span className="text-[13px] text-tprimary">{b.name}</span>
+   425→   425→                      </TableCell>
+   426→   426→                      <TableCell>
+   427→   427→                        {b.bacsImpact ? (
+   428→   428→                          <span className="flex items-center gap-1.5">
+   429→   429→                            <span className="w-1.5 h-1.5 bg-warning" />
+   430→   430→                            <span className="text-[12px] text-warning font-mono">Shifts BACS</span>
+   431→   431→                          </span>
+   432→   432→                        ) : (
+   433→   433→                          <span className="flex items-center gap-1.5">
+   434→   434→                            <span className="w-1.5 h-1.5 bg-ttertiary" />
+   435→   435→                            <span className="text-[12px] text-ttertiary font-mono">No impact</span>
+   436→   436→                          </span>
+   437→   437→                        )}
+   438→   438→                      </TableCell>
+   439→   439→                    </TableRow>
+   440→   440→                  ))}
+   441→   441→                </DataTable>
+   442→   442→              )}
+   443→   443→            </div>
+   444→   444→          )}
+   445→   445→
+   446→   446→          {/* USERS TAB */}
+   447→   447→          {activeTab === "users" && (
+   448→   448→            <div className="flex flex-col gap-5">
+   449→   449→              <div className="bg-surface border border-subtle p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+   450→   450→                <div>
+   451→   451→                  <h2 className="section-title text-tprimary">User Directory</h2>
+   452→   452→                  <p className="text-[12px] text-tsecondary mt-1">
+   453→   453→                    {SEEDED_USERS.length} users · {new Set(SEEDED_USERS.map((u) => u.email.split("@")[1])).size}{" "}
+   454→   454→                    domains
+   455→   455→                  </p>
+   456→   456→                </div>
+   457→   457→                <PearlButton onClick={() => toast("User invite flow coming soon", "info")}>
+   458→   458→                  <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">
+   459→   459→                    person_add
+   460→   460→                  </span>
+   461→   461→                  Invite User
+   462→   462→                </PearlButton>
+   463→   463→              </div>
+   464→   464→              <DataTable
+   465→   465→                columns={[
+   466→   466→                  { label: "User ID" },
+   467→   467→                  { label: "Email" },
+   468→   468→                  { label: "Role" },
+   469→   469→                  { label: "Company" },
+   470→   470→                  { label: "Status" },
+   471→   471→                ]}
+   472→   472→              >
+   473→   473→                {SEEDED_USERS.map((u) => {
+   474→   474→                  const chip = roleChip(u.role);
+   475→   475→                  return (
+   476→   476→                    <TableRow key={u.id}>
+   477→   477→                      <TableCell mono className="text-tsecondary">
+   478→   478→                        {u.id}
+   479→   479→                      </TableCell>
+   480→   480→                      <TableCell>
+   481→   481→                        <span className="text-[13px] text-tprimary font-mono">{u.email}</span>
+   482→   482→                      </TableCell>
+   483→   483→                      <TableCell>
+   484→   484→                        <StatusChip status={chip.status} label={ROLE_LABELS[u.role] || u.role} />
+   485→   485→                      </TableCell>
+   486→   486→                      <TableCell className="text-tsecondary">
+   487→   487→                        {u.company || <span className="text-ttertiary">—</span>}
+   488→   488→                      </TableCell>
+   489→   489→                      <TableCell>
+   490→   490→                        <StatusChip status="active" label="Active" />
+   491→   491→                      </TableCell>
+   492→   492→                    </TableRow>
+   493→   493→                  );
+   494→   494→                })}
+   495→   495→              </DataTable>
+   496→   496→            </div>
+   497→   497→          )}
+   498→   498→
+   499→   499→          {/* COMPLIANCE TAB */}
+   500→   500→          {activeTab === "compliance" && (
+   501→   501→            <div className="flex flex-col gap-5">
+   502→   502→              <div className="bg-surface border border-subtle p-5 flex items-center justify-between">
+   503→   503→                <div>
+   504→   504→                  <h2 className="section-title text-tprimary">Year-End Compliance Status</h2>
+   505→   505→                  <p className="text-[12px] text-tsecondary mt-1">
+   506→   506→                    Tax year {taxYear} · statutory filing obligations
+   507→   507→                  </p>
+   508→   508→                </div>
+   509→   509→                <StatusChip status="active" label="On Track" />
+   510→   510→              </div>
+   511→   511→              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+   512→   512→                <ComplianceCard
+   513→   513→                  title="P60 Distribution"
+   514→   514→                  description="Issued to all employees by 31 May after tax year end."
+   515→   515→                  status="active"
+   516→   516→                  statusLabel="Complete"
+   517→   517→                  icon="description"
+   518→   518→                  due="31 May 2027"
+   519→   519→                />
+   520→   520→                <ComplianceCard
+   521→   521→                  title="P11D Benefits"
+   522→   522→                  description="Benefits-in-kind returns for directors &amp; P11D employees."
+   523→   523→                  status="pending"
+   524→   524→                  statusLabel="In Progress"
+   525→   525→                  icon="receipt_long"
+   526→   526→                  due="6 July 2027"
+   527→   527→                />
+   528→   528→                <ComplianceCard
+   529→   529→                  title="Final FPS"
+   530→   530→                  description="Final Full Payment Submission marking tax year close."
+   531→   531→                  status="pending"
+   532→   532→                  statusLabel="Pending"
+   533→   533→                  icon="send"
+   534→   534→                  due="19 Apr 2027"
+   535→   535→                />
+   536→   536→                <ComplianceCard
+   537→   537→                  title="EPS Year-End"
+   538→   538→                  description="Employer Payment Summary finalising NI &amp; student loan YTD."
+   539→   539→                  status="pending"
+   540→   540→                  statusLabel="Pending"
+   541→   541→                  icon="summarize"
+   542→   542→                  due="19 Apr 2027"
+   543→   543→                />
+   544→   544→                <ComplianceCard
+   545→   545→                  title="AE Re-enrolment"
+   546→   546→                  description="3-year cyclical re-enrolment declaration to TPR."
+   547→   547→                  status="active"
+   548→   548→                  statusLabel="Scheduled"
+   549→   549→                  icon="retirement"
+   550→   550→                  due="Oct 2027"
+   551→   551→                />
+   552→   552→                <ComplianceCard
+   553→   553→                  title="Gender Pay Gap"
+   554→   554→                  description="Snapshot report for employers with 250+ staff."
+   555→   555→                  status="not_assessed"
+   556→   556→                  statusLabel="N/A"
+   557→   557→                  icon="balance"
+   558→   558→                  due="30 Mar 2027"
+   559→   559→                />
+   560→   560→              </div>
+   561→   561→            </div>
+   562→   562→          )}
+   563→   563→
+   564→   564→          {/* COMPANY TAB */}
+   565→   565→          {activeTab === "company" && (
+   566→   566→            <div className="flex flex-col gap-5">
+   567→   567→              <div className="bg-surface border border-subtle p-5 flex items-center justify-between">
+   568→   568→                <div>
+   569→   569→                  <h2 className="section-title text-tprimary">Company Defaults</h2>
+   570→   570→                  <p className="text-[12px] text-tsecondary mt-1">
+   571→   571→                    Bureau-wide defaults applied to new client onboardings
+   572→   572→                  </p>
+   573→   573→                </div>
+   574→   574→                <PearlButton onClick={() => toast("Edit mode coming soon", "info")}>
+   575→   575→                  <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">edit</span>
+   576→   576→                  Edit Defaults
+   577→   577→                </PearlButton>
+   578→   578→              </div>
+   579→   579→              <ComingSoon label="Company defaults" />
+   580→   580→            </div>
+   581→   581→          )}
+   582→   582→
+   583→   583→          {/* PENSION TAB */}
+   584→   584→          {activeTab === "pension" && (
+   585→   585→            <ComingSoon label="Pension scheme" />
+   586→   586→          )}
+   587→   587→
+   588→   588→          {/* SECURITY TAB */}
+   589→   589→          {activeTab === "security" && (
+   590→   590→            <ComingSoon label="Security" />
+   591→   591→          )}
+   592→   592→
+   593→   593→          {/* NOTIFICATIONS TAB */}
+   594→   594→          {activeTab === "notifications" && (
+   595→   595→            <ComingSoon label="Notifications" />
+   596→   596→          )}
+   597→   597→
+   598→   598→          {/* SYSTEM TAB */}
+   599→   599→          {activeTab === "system" && (
+   600→   600→            <ComingSoon label="System" />
+   601→   601→          )}
+   602→   602→        </div>
+   603→   603→      </div>
+   604→   604→
+   605→   605→      {/* Override Modal */}
+   606→   606→      <Modal open={overrideOpen} onClose={() => setOverrideOpen(false)} title="Override Threshold">
+   607→   607→        <div className="flex flex-col gap-5">
+   608→   608→          <div className="bg-surface-low border-l-2 border-l-warning border border-subtle p-3 flex items-start gap-2">
+   609→   609→            <span className="material-symbols-outlined text-[16px] text-warning mt-0.5">warning</span>
+   610→   610→            <p className="text-[12px] text-tsecondary leading-relaxed">
+   611→   611→              Overrides create a new effective-dated row in the audit log. The canonical HMRC value
+   612→   612→              is preserved. The override will be visible to all bureau users.
+   613→   613→            </p>
+   614→   614→          </div>
+   615→   615→
+   616→   616→          <Field label="Parameter Key" hint="e.g. personalAllowance, niEeMainRate">
+   617→   617→            <TextInput
+   618→   618→              value={overrideKey}
+   619→   619→              onChange={setOverrideKey}
+   620→   620→              placeholder="personalAllowance"
+   621→   621→              mono
+   622→   622→            />
+   623→   623→          </Field>
+   624→   624→
+   625→   625→          <Field label="Override Value" hint="e.g. £13,000 or 7%">
+   626→   626→            <TextInput
+   627→   627→              value={overrideValue}
+   628→   628→              onChange={setOverrideValue}
+   629→   629→              placeholder="£13,000"
+   630→   630→              mono
+   631→   631→            />
+   632→   632→          </Field>
+   633→   633→
+   634→   634→          <Field
+   635→   635→            label="Reason for Override"
+   636→   636→            hint="Required for audit trail · visible to all bureau users"
+   637→   637→            error={
+   638→   638→              overrideReason && overrideReason.length < 8 ? "Reason must be at least 8 chars" : undefined
+   639→   639→            }
+   640→   640→          >
+   641→   641→            <TextInput
+   642→   642→              value={overrideReason}
+   643→   643→              onChange={setOverrideReason}
+   644→   644→              placeholder="Director's allowance adjustment per client letter"
+   645→   645→            />
+   646→   646→          </Field>
+   647→   647→
+   648→   648→          <div className="flex items-center justify-end gap-2 pt-2 border-t border-subtle">
+   649→   649→            <GhostButton onClick={() => setOverrideOpen(false)}>Cancel</GhostButton>
+   650→   650→            <PearlButton onClick={saveOverride}>
+   651→   651→              <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">save</span>
+   652→   652→              Save Override
+   653→   653→            </PearlButton>
+   654→   654→          </div>
+   655→   655→        </div>
+   656→   656→      </Modal>
+   657→   657→    </div>
+   658→   658→  );
+   659→   659→}
+   660→   660→
