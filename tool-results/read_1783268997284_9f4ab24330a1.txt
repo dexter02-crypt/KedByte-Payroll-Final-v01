@@ -1,0 +1,455 @@
+     1→# KEDBYTE PAYROLL — SETTINGS MODULE: COMPLETE BUILD SPECIFICATION
+     2→## v1.0 — 2026-07-05 · Covers all 9 tabs · Routing, data, logic, sync, validation, audit
+     3→### Companion to FINAL PRD/TRD v2.0 (Part 6 §S10). This document is self-sufficient — build from it directly.
+     4→
+     5→---
+     6→
+     7→# 0 — FIX FIRST: THE BROKEN "RETIREM" NAV ITEM
+     8→
+     9→## 0.1 What's wrong (visible in your screenshots)
+    10→The third item in the settings sub-nav renders as `RETIREM` in a pixelated OCR-style face, overflowing its row, with the icon colliding into the text. Three separate bugs:
+    11→
+    12→1. **Wrong label.** The tab is the pension scheme section. Per the PRD the label is **"Pension"** — not "Retirement". Rename it. (7 chars also fixes the overflow.)
+    13→2. **Wrong font.** The item is picking up a decorative/fallback font instead of Inter. This happens when (a) the element has its own `font-family` (e.g. a leftover `font-family: 'Retirement'` or a display face from the Stitch export), or (b) `text-transform` + `letter-spacing` was applied with a font that only has small-caps glyphs, or (c) the label was exported as ASCII-art/styled text. The nav label must **inherit** the app font.
+    14→3. **Not using the shared component.** Every other row (Company, Tax, Bank…) is uniform; this one clearly bypassed the shared `SettingsNavItem`. All nine rows must render through one component.
+    15→
+    16→## 0.2 The fix (drop-in)
+    17→
+    18→```tsx
+    19→// components/settings/SettingsNav.tsx
+    20→const SETTINGS_SECTIONS = [
+    21→  { slug: 'company',       label: 'Company',       icon: 'domain' },
+    22→  { slug: 'tax',           label: 'Tax',           icon: 'percent' },
+    23→  { slug: 'pension',       label: 'Pension',       icon: 'savings' },        // ← was "RETIREM…"
+    24→  { slug: 'bank',          label: 'Bank',          icon: 'account_balance' },
+    25→  { slug: 'users',         label: 'Users',         icon: 'group' },
+    26→  { slug: 'security',      label: 'Security',      icon: 'lock' },
+    27→  { slug: 'compliance',    label: 'Compliance',    icon: 'verified' },
+    28→  { slug: 'notifications', label: 'Notifications', icon: 'notifications' },
+    29→  { slug: 'system',        label: 'System',        icon: 'settings' },
+    30→] as const;
+    31→
+    32→export function SettingsNav({ active }: { active: string }) {
+    33→  return (
+    34→    <nav className="settings-nav" aria-label="Settings sections">
+    35→      {SETTINGS_SECTIONS.map(s => (
+    36→        <Link key={s.slug} href={`/bureau/settings/${s.slug}`}
+    37→              className={`settings-nav-item${active === s.slug ? ' is-active' : ''}`}>
+    38→          <span className="material-symbols-outlined" aria-hidden>{s.icon}</span>
+    39→          <span className="settings-nav-label">{s.label}</span>
+    40→        </Link>
+    41→      ))}
+    42→    </nav>
+    43→  );
+    44→}
+    45→```
+    46→
+    47→```css
+    48→/* globals.css — settings nav (locks out any font leakage) */
+    49→.settings-nav        { width: 200px; border: 1px solid var(--border-subtle); background: var(--bg-surface); }
+    50→.settings-nav-item   { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px;
+    51→                       border-bottom: 1px solid var(--border-subtle);
+    52→                       color: var(--text-secondary); text-decoration: none; }
+    53→.settings-nav-item:last-child { border-bottom: 0; }
+    54→.settings-nav-label  { font-family: Inter, system-ui, sans-serif !important;   /* kills the pixel-font fallback */
+    55→                       font-size: 13px; font-weight: 500; letter-spacing: 0;
+    56→                       text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    57→.settings-nav-item .material-symbols-outlined { font-size: 20px; flex: none; }
+    58→.settings-nav-item:hover     { color: var(--text-primary); background: var(--surface-high, #201f1f); }
+    59→.settings-nav-item.is-active { color: var(--text-primary); background: #201f1f;
+    60→                               box-shadow: inset 2px 0 0 var(--accent-pearl); }
+    61→```
+    62→
+    63→Checklist: label says **Pension** · font is Inter 13/500 like siblings · icon `savings` · row height 48px matches · active state = inset pearl bar. If the pixel font still appears, search the codebase for `Retirement`, `font-family` overrides inside the settings nav, and any `@font-face` the Stitch export injected — delete them.
+    64→
+    65→---
+    66→
+    67→# 1 — ROUTING & NAVIGATION MODEL
+    68→
+    69→```
+    70→/bureau/settings                     → redirect('/bureau/settings/company')
+    71→/bureau/settings/[section]           section ∈ company|tax|pension|bank|users|security|
+    72→                                               compliance|notifications|system
+    73→                                     unknown slug → notFound()
+    74→
+    75→Deep links (used elsewhere in the app — keep stable):
+    76→/bureau/settings/tax?year=2026-27&highlight=ni_pt        (RTI error S21 → threshold row)
+    77→/bureau/settings/security#hmrc-credentials                (RTI 1046 auth error → creds card)
+    78→/bureau/settings/users?invite=1                           (dashboard quick action)
+    79→/bureau/settings/bank?verify=:companyId                   (company modulus warning)
+    80→
+    81→Existing sub-pages remain SEPARATE routes (linked from cards inside tabs, not nested):
+    82→/bureau/settings/pay-schedule · /bureau/settings/bank-holidays · /bureau/settings/holiday-rules
+    83→```
+    84→
+    85→**File structure (Next.js App Router):**
+    86→```
+    87→src/app/(bureau)/bureau/settings/
+    88→  layout.tsx            ← header (“Settings / Tax thresholds · HMRC sync · …”), ACTIVE TAX YEAR
+    89→                          chip, <SettingsNav active={section}/>, content slot
+    90→  page.tsx              ← redirect to /company
+    91→  [section]/page.tsx    ← switch(section) → tab component (server component + client islands)
+    92→src/components/settings/
+    93→  SettingsNav.tsx  SectionCard.tsx  KeyValueTable.tsx  ThresholdTable.tsx
+    94→  CompanyTab.tsx TaxTab.tsx PensionTab.tsx BankTab.tsx UsersTab.tsx
+    95→  SecurityTab.tsx ComplianceTab.tsx NotificationsTab.tsx SystemTab.tsx
+    96→```
+    97→
+    98→**Guards:** layout requires role ∈ `bureau_admin | company_admin`. Per-tab: `users`, `security`, `system` = **bureau_admin only** (company_admin sees a locked card, not a 404). The ACTIVE TAX YEAR chip (top right, `2026-27`) is a read-only global sourced from `GET /api/settings/tax/years` → `{active:'2026-27', available:[...]}`; changing displayed year on the Tax tab is a **view filter only** — it never changes which year the engine uses (the engine derives year from each pay run's `pay_date`).
+    99→
+   100→---
+   101→
+   102→# 2 — SHARED SETTINGS ARCHITECTURE (applies to every tab)
+   103→
+   104→## 2.1 The one fetch/update pattern
+   105→
+   106→```
+   107→READ    GET  /api/settings/:section?companyId=&year=   → SectionPayload (shape per tab below)
+   108→WRITE   PUT  /api/settings/:section                    → { section, changes:[{key, value}], companyId?, reason? }
+   109→        Response 200 { payload }   |  422 { fields:{key: message} }  |  403 | 409
+   110→```
+   111→
+   112→Rules every write obeys:
+   113→1. **Validate server-side** with the same validators the engine uses (`validatePAYERef`, `validateSortCode`, `modulusCheck`, `parseTaxCode`…). Client validation is UX only.
+   114→2. **Audit every accepted change**: one `audit_log` row per key — `action:'SETTINGS_CHANGED'`, `entity_type:'settings:{section}'`, `before_json/after_json`, optional `reason`. Hash-chained as per PRD §11.2.
+   115→3. **Optimistic UI with rollback**: apply locally → PUT → on 422 revert the field, show inline error; on network error revert + toast "Change not saved — retry".
+   116→4. **Concurrency**: every SectionPayload carries `version` (max `updated_at` of underlying rows). PUT sends `If-Match: version`; mismatch → 409 → client refetches, shows "Settings changed by {actor} — review and retry".
+   117→5. **Cache**: server components fetch fresh (no cache) — settings reads are cheap and correctness matters; after PUT, `router.refresh()`.
+   118→
+   119→## 2.2 Effective-dated configuration (the load-bearing rule)
+   120→
+   121→Statutory numbers are **never** stored as a single mutable value. They live in `statutory_config (tax_year, effective_from, key, value_json, source)` — PRD Part 4. Reading a rate = *latest row where `effective_from ≤ date`* for that year:
+   122→
+   123→```sql
+   124→SELECT DISTINCT ON (key) key, value_json
+   125→FROM statutory_config
+   126→WHERE tax_year = $1 AND effective_from <= $2
+   127→ORDER BY key, effective_from DESC;
+   128→```
+   129→
+   130→```ts
+   131→// server/config.ts
+   132→export async function getStatutoryConfig(taxYear: string, onDate: string): Promise<Record<string, unknown>>
+   133→export async function overrideStatutory(taxYear: string, key: string, value: unknown,
+   134→  effectiveFrom: string, reason: string, actorId: string): Promise<void>
+   135→// overrideStatutory INSERTS a new row (never UPDATE), audits CONFIG_OVERRIDE with reason (mandatory),
+   136→// and invalidates the Redis key `cfg:{taxYear}` so the engine picks it up next calculation.
+   137→```
+   138→
+   139→Consequence: recalculating March's pay run in June still uses March's numbers. This is the acceptance test in PRD §12.6.
+   140→
+   141→## 2.3 Bureau-level vs company-level scope
+   142→
+   143→Some settings are bureau-wide, some per-company. Every tab payload declares its scope; company-scoped tabs render a company selector (defaults to "Bureau defaults"):
+   144→
+   145→| Tab | Scope |
+   146→|---|---|
+   147→| Company | bureau defaults + per-company overrides |
+   148→| Tax | global statutory (read) + per-company PAYE identity |
+   149→| Pension | per-company scheme (+ bureau default template) |
+   150→| Bank | per-company |
+   151→| Users | bureau |
+   152→| Security | bureau (+ per-company HMRC credentials) |
+   153→| Compliance | bureau policy + per-company year-end status |
+   154→| Notifications | bureau rules + per-user channel prefs |
+   155→| System | bureau |
+   156→
+   157→Resolution order everywhere: `company override → bureau default → statutory/config constant`.
+   158→
+   159→---
+   160→
+   161→# 3 — TAB-BY-TAB SPECIFICATION
+   162→
+   163→## 3.1 COMPANY — `/bureau/settings/company`
+   164→
+   165→**Purpose:** bureau-wide defaults applied at client onboarding (your screenshot's "Company Defaults / Bureau-wide defaults applied to new client onboardings" card) + per-company overrides.
+   166→
+   167→**Payload:**
+   168→```ts
+   169→GET /api/settings/company?companyId=optional →
+   170→{
+   171→  scope: 'bureau' | 'company', version: string,
+   172→  defaults: {
+   173→    region: 'england_wales'|'scotland'|'northern_ireland',
+   174→    paySchedule: { rule:'monthly_last_working_day'|'fixed_date'|'weekly'|'bi_weekly', day?: number },
+   175→    earlyPay: boolean,
+   176→    overtimeMultiplier: number,          // 1.5 default
+   177→    pilonDivisor: 260|252|365,
+   178→    holidayEntitlementBasis: 'statutory_5_6_weeks',
+   179→    payslipTemplate: 'void_standard',
+   180→    payrollIdPrefix: string,             // 'EMP-'
+   181→  },
+   182→  companies?: [{ id, name, overridesCount }]   // bureau view: which clients deviate
+   183→}
+   184→```
+   185→
+   186→**Logic:**
+   187→- `Edit Defaults` opens an editor over `defaults`; PUT `{section:'company', changes:[...]}` → writes bureau row.
+   188→- Changing a **default never retro-changes existing companies** — it seeds future onboardings only. Banner states this explicitly.
+   189→- Per-company view (selector) shows the same fields resolved with override badges (`pearl dot = overridden`); clearing an override reverts to bureau default (`changes:[{key, value:null}]`).
+   190→- Validation: `overtimeMultiplier ∈ [1, 3]`; `day ∈ [1,31]` only when rule=fixed_date; region change on an existing company warns "affects bank-holiday calendar and pay-date resolution from the next pay run".
+   191→
+   192→## 3.2 TAX — `/bureau/settings/tax`  (the tab in your screenshots' header strip)
+   193→
+   194→**Purpose:** view statutory thresholds per tax year, HMRC sync, controlled overrides, per-company PAYE identity.
+   195→
+   196→**Payload:**
+   197→```ts
+   198→GET /api/settings/tax?year=2026-27&companyId=optional →
+   199→{
+   200→  version: string,
+   201→  years: { active:'2026-27', available:['2026-27','2025-26'] },
+   202→  thresholds: [                                  // rendered as your Threshold table
+   203→    { key:'personal_allowance',    label:'Personal Allowance',        value:12570,  unit:'£/yr',
+   204→      priorValue:12570, variancePct:0, authority:'HMRC', effectiveFrom:'2026-04-06', overridden:false },
+   205→    { key:'basic_rate_limit',      label:'Basic Rate Limit',          value:50270, ... },
+   206→    { key:'higher_rate_limit',     label:'Higher Rate Limit',         value:125140, ... },
+   207→    { key:'ni_pt',                 label:'NI Primary Threshold',      value:12570, ... },
+   208→    { key:'ni_st',                 label:'NI Secondary Threshold',    value:5000, ... },
+   209→    { key:'ni_uel',                label:'NI Upper Earnings Limit',   value:50270, ... },
+   210→    { key:'ni_lel',                label:'NI Lower Earnings Limit',   value:6708, ... },
+   211→    { key:'sl_plan_1'…'sl_plan_5','sl_postgrad', 'ae_trigger','ae_qel','ae_qeu',
+   212→      'nlw_21','nmw_18_20','nmw_16_17','ssp_week','smp_std_week', ... }
+   213→  ],
+   214→  scotlandBands: [...], rukBands: [...],
+   215→  sync: { lastRunAt:'2026-07-01T03:00:00Z', status:'ok'|'stale'|'failed', source:'gov.uk rates page' },
+   216→  companyPaye?: { payeRef, aoRef, senderVerified: boolean }   // when companyId given
+   217→}
+   218→```
+   219→
+   220→**Logic — the three actions on this tab:**
+   221→
+   222→**(a) Update from HMRC (sync).** `POST /api/settings/tax/sync {year}` → 202 `{jobId}` → job `tax:sync`:
+   223→```
+   224→fetch canonical rates (v1: bundled JSON per year shipped with releases, "source: Kedbyte rates pack";
+   225→                       v2: scrape/parse gov.uk rates-and-thresholds page)
+   226→diff against current effective values
+   227→  no changes  → sync.lastRunAt updated, toast "Thresholds verified — no changes"
+   228→  changes     → DO NOT auto-apply. Create a review diff:
+   229→                GET /api/settings/tax/sync/:jobId → [{key, current, incoming, source}]
+   230→                Modal table with per-row Accept — accepted rows call overrideStatutory(...,
+   231→                reason:'HMRC sync {date}'). Statutory numbers changing silently is how
+   232→                payroll products create liabilities; a human always confirms.
+   233→audit: TAX_SYNC_RUN + one CONFIG_OVERRIDE per accepted row
+   234→```
+   235→
+   236→**(b) Override threshold.** Row action → modal: new value · `effectiveFrom` (default today; may be ≥ year start) · mandatory `reason`. `POST /api/settings/tax/override {taxYear, key, value, effectiveFrom, reason}` → inserts effective-dated row (§2.2), row shows `overridden:true` pearl badge + hover history (`GET /api/settings/tax/history?key=`). **Guard:** if committed pay runs exist with `pay_date ≥ effectiveFrom`, block with 409: "3 committed pay runs fall after this date. Overrides cannot rewrite committed history — corrections go through pay-run amendment (FPS correction)."
+   237→- `Variance` column = `(value − priorYearValue)/priorYearValue × 100`, computed server-side, mono, amber if ≠ 0.
+   238→
+   239→**(c) Company PAYE identity** (company selected): `payeRef` (`^\d{3}/[A-Z0-9]{1,10}$`), `aoRef` (`^\d{3}P[A-Z]\d{7}[0-9X]$`). Editing either warns: "Changes apply to the NEXT RTI submission. Mid-year reference changes usually require an HMRC scheme transfer — confirm with HMRC first." Audited `PAYE_REF_CHANGED`.
+   240→
+   241→**Year selector:** switching to `2025-26` re-fetches read-only historical values (no override/sync buttons; banner "Closed tax year — read only").
+   242→
+   243→## 3.3 PENSION — `/bureau/settings/pension`  (the fixed "RETIREM" tab)
+   244→
+   245→**Purpose:** per-company pension scheme configuration; bureau default template.
+   246→
+   247→**Payload:**
+   248→```ts
+   249→GET /api/settings/pension?companyId= →
+   250→{
+   251→  version: string,
+   252→  scheme: { id, provider:'NEST'|'Peoples'|'Smart'|'Aviva'|'Other', schemeRef:string|null,
+   253→            basis:'qualifying_earnings'|'pensionable_full'|'total_earnings',
+   254→            relief:'relief_at_source'|'net_pay'|'salary_sacrifice',
+   255→            eeRate:0.05, erRate:0.03, status:'active'|'inactive' },
+   256→  statutoryFloor: { minTotal:0.08, minEmployer:0.03, aeTrigger:10000, qel:6240, qeu:50270 },
+   257→  providerConnection?: { nestEmployerRef, directDebitActive:boolean, lastContributionRun:string },
+   258→  reEnrolment: { windowStart:string, windowEnd:string, due:boolean },   // 3-yearly ±3m
+   259→  enrolledCount:number, optedOutCount:number
+   260→}
+   261→```
+   262→
+   263→**Logic:**
+   264→- **Rate validation (statutory floor, hard):** reject unless `eeRate + erRate ≥ minTotal` AND `erRate ≥ minEmployer` *for the chosen basis's statutory set* (QE basis: 8%/3%; pensionable-from-£1: 9%/4%; total earnings: 7%/3%). 422: "Below auto-enrolment minimum (8% total / 3% employer on qualifying earnings)."
+   265→- **Relief method change** = payslip maths change. Confirm modal shows a live worked example (calls the real engine: `calculatePension(3000, newScheme)`) comparing deducted amounts. Applies **from the next uncommitted pay run**; committed entries untouched. Audit `PENSION_RELIEF_CHANGED` with before/after.
+   266→- **Basis change**: same treatment + warning that contribution files (PAPDIS/NEST) will reflect the new pensionable definition.
+   267→- **Provider change**: if enrolled members exist → guided flow stub in v1: block with "Provider migration requires a contribution-history transfer — contact support." (Prevents silent data loss.)
+   268→- Links out: "Assessment & members → `/bureau/pensions`" (S08 owns people; this tab owns the scheme).
+   269→- NEST connection card: employer ref field + Test Connection (`POST /api/pensions/nest/ping`) → shows directDebitActive; if false, banner "NEST will reject Approve-for-Payment until the employer direct debit is active."
+   270→
+   271→## 3.4 BANK — `/bureau/settings/bank`
+   272→
+   273→**Purpose:** company payment account (BACS source), SUN, BACS calendar preferences.
+   274→
+   275→**Payload:**
+   276→```ts
+   277→GET /api/settings/bank?companyId= →
+   278→{ version,
+   279→  account: { sortCodeMasked:'20-••-••', accountMasked:'••••5678', accountName,
+   280→             modulusStatus:'passed'|'warned'|'overridden', verifiedAt },
+   281→  bacs: { sun:string|null, leadDays:2, submissionWindowNote:'Submit by 22:30 on processing day 1' },
+   282→  paymentRail: 'bacs'|'manual',
+   283→  linkedCards: [{ label:'Pay schedule', href:'/bureau/settings/pay-schedule' },
+   284→                { label:'Bank holidays', href:'/bureau/settings/bank-holidays' }] }
+   285→```
+   286→
+   287→**Logic:**
+   288→- Bank details render **masked**; editing requires re-entry of both sort code + account (no partial edit). On save: `validateSortCode` → `modulusCheck` server-side → pass ⇒ store encrypted (`*_enc`, §PRD 4) + `modulusStatus:'passed'`; fail ⇒ inline warning "Failed modulus check — this account may not exist" with **Override** (mandatory reason, audited `BANK_MODULUS_OVERRIDE`, status `overridden`, amber chip).
+   289→- Changing the account while a pay run is `approved`-but-not-committed → 409 "Commit or reopen PR-2026-07 first" (BACS file must match the account that approved it).
+   290→- SUN: 6 digits or empty (empty ⇒ BACS file generated for indirect/bank-portal submission; note shown).
+   291→- Every change audited with masked before/after (`20-••-•• → 40-••-••`) — never log full numbers.
+   292→
+   293→## 3.5 USERS — `/bureau/settings/users`  (bureau_admin only)
+   294→
+   295→**Payload:**
+   296→```ts
+   297→GET /api/settings/users →
+   298→{ version,
+   299→  users: [{ id, email, name, role, companyScope:{ all:boolean, companyIds:string[] },
+   300→            mfaEnabled, status:'active'|'invited'|'locked'|'disabled', lastLogin }],
+   301→  invites: [{ id, email, role, expiresAt }] }
+   302→```
+   303→
+   304→**Actions & logic:**
+   305→```
+   306→POST   /api/settings/users/invite {email, role, companyIds?} →
+   307→       creates users row status='invited' + invite token (32B, TTL 7d, Redis invite:{token})
+   308→       + email with /accept-invite/{token}. Duplicate active email → 409.
+   309→PUT    /api/settings/users/:id {role?, companyIds?, status?}
+   310→       Guards: cannot demote/disable the LAST active bureau_admin (server counts, 409);
+   311→       cannot edit self role. Role change → token_version++ (forces re-login with new claims).
+   312→POST   /api/settings/users/:id/mfa-reset      → clears mfa_secret, notifies user, audit MFA_RESET
+   313→POST   /api/settings/users/:id/unlock         → failed_logins=0, locked_until=null
+   314→DELETE /api/settings/users/:id                → soft: status='disabled', token_version++,
+   315→                                                sessions revoked. Audit rows keep actor history.
+   316→POST   /api/settings/users/invites/:id/resend | DELETE …/revoke
+   317→```
+   318→Every action audited (`USER_INVITED / USER_ROLE_CHANGED / USER_DISABLED / MFA_RESET / USER_UNLOCKED`). Payroll-manager scope = explicit `companyIds` chips UI.
+   319→
+   320→## 3.6 SECURITY — `/bureau/settings/security`  (bureau_admin only)
+   321→
+   322→**Payload:**
+   323→```ts
+   324→GET /api/settings/security →
+   325→{ version,
+   326→  policy: { minPasswordLength:12, breachCheck:true, mfaRequiredForRoles:['bureau_admin'],
+   327→            sessionIdleMinutes:30, refreshDays:7 },
+   328→  mySessions: [{ id, device, ip, lastSeen, current:boolean }],
+   329→  hmrcCredentials: [{ companyId, companyName, senderId, hasPassword:true,
+   330→                      lastVerified, status:'ok'|'failed'|'untested' }],   // ← deep-link target #hmrc-credentials
+   331→  auditChain: { lastVerifiedAt, intact:boolean, rows:number } }
+   332→```
+   333→
+   334→**Logic:**
+   335→- **Policy edits**: `minPasswordLength ∈ [8,64]`; adding a role to `mfaRequiredForRoles` → affected users without MFA get a forced-setup interstitial at next login (flag `mfa_enforced_at`).
+   336→- **Sessions**: `DELETE /api/settings/security/sessions/:id` revokes one; `POST …/sessions/revoke-others` bumps `token_version` (keeps current via fresh issue). Real payroll-fraud mitigation — keep it one click.
+   337→- **HMRC Government Gateway credentials (per company)**: SenderID + password stored via envelope encryption (`hmrc_credentials` table or `companies` columns `gg_sender_id`, `gg_password_enc`). `Test` button → `POST /api/settings/security/hmrc/verify {companyId}` → worker sends a minimal Test-in-Live poll/list request → updates `status`. RTI error **1046** deep-links here (`#hmrc-credentials`). Password is write-only: never returned by GET (`hasPassword:true` only). Audit `HMRC_CREDS_UPDATED` (never the values).
+   338→- **Audit chain card**: `POST /api/audit/verify` → walks hash chain (PRD §11.2) → `{intact, firstBreakSeq?}`; failure = red banner + ops alert.
+   339→
+   340→## 3.7 COMPLIANCE — `/bureau/settings/compliance`
+   341→
+   342→**Payload:**
+   343→```ts
+   344→GET /api/settings/compliance?companyId= →
+   345→{ version,
+   346→  retention: { payrollYears:6, statutoryMinimumYears:3 },
+   347→  yearEnd: { taxYear:'2025-26',
+   348→             checklist: [
+   349→               { key:'final_fps',  label:'Final FPS/EPS indicator sent', done:false, due:'2026-04-19', href:'/bureau/rti' },
+   350→               { key:'p60s',       label:'P60s issued to all employed on 5 April', done:true, doneCount:14, total:14, due:'2026-05-31' },
+   351→               { key:'p11ds',      label:'P11D / P11D(b) submitted', done:false, due:'2026-07-06' },
+   352→               { key:'class1a',    label:'Class 1A NIC paid', done:false, due:'2026-07-22' } ] },
+   353→  smallEmployer: { flag:boolean, basis:'prior-year Class 1 ≤ £45,000', recoveryRate:'109%' },
+   354→  employmentAllowance: { claimed:boolean, usedYtd:number, cap:10500 },
+   355→  gdpr: { erasureRequests:[{ id, subject, receivedAt, status:'pending_retention'|'anonymised' }] } }
+   356→```
+   357→
+   358→**Logic:**
+   359→- `retention.payrollYears ∈ [3,10]` (floor 3 = HMRC statutory; UI blocks below with explanation).
+   360→- **Checklist is computed, not stored**: each item derives from live data (final FPS = rti_submissions with FinalSubmission flag accepted; P60s = documents count vs employees-on-5-April; etc.). Deadline chips: amber ≤ 14 days, red overdue. These same items feed the S02 dashboard Compliance card — one source function `getComplianceStatus(companyId, taxYear)`.
+   361→- **smallEmployer** toggle: sets `companies.small_employer`; affects EPS recovery maths (92% ↔ 109%) from the NEXT EPS; audited.
+   362→- **employmentAllowance.claimed** toggle: sets the EPS claim flag; `usedYtd` = cumulative employer-NI offset consumed (read model from committed runs).
+   363→- **Erasure requests**: `POST /api/settings/compliance/erasure {employeeId}` → status `pending_retention` (anonymise job runs when retention expires). Card explains: statutory retention overrides GDPR erasure; audit rows are never deleted.
+   364→
+   365→## 3.8 NOTIFICATIONS — `/bureau/settings/notifications`
+   366→
+   367→**Payload:**
+   368→```ts
+   369→GET /api/settings/notifications →
+   370→{ version,
+   371→  rules: [   // bureau-wide event rules (drive the notify:paydates worker + event fan-out)
+   372→    { key:'payrun_input_due',   label:'Pay run input due',        offsetDays:-5, channels:{inApp:true,email:true},  enabled:true },
+   373→    { key:'bacs_deadline',      label:'BACS submission deadline', offsetDays:-2, channels:{inApp:true,email:true},  enabled:true },
+   374→    { key:'fps_due',            label:'FPS due (payday)',         offsetDays:0,  channels:{inApp:true,email:true},  enabled:true },
+   375→    { key:'rti_rejected',       label:'RTI rejected',             offsetDays:null, channels:{inApp:true,email:true}, enabled:true, locked:true },
+   376→    { key:'bank_change_request',label:'Employee bank change',     offsetDays:null, channels:{inApp:true,email:true}, enabled:true, locked:true },
+   377→    { key:'ae_reenrolment',     label:'Re-enrolment window',      offsetDays:-30, channels:{inApp:true,email:false}, enabled:true } ],
+   378→  myPreferences: { emailDigest:'immediate'|'daily'|'off' } }
+   379→```
+   380→
+   381→**Logic:**
+   382→- `locked:true` rules (fraud/compliance-critical: RTI rejection, bank change) render with a lock icon — `enabled` cannot be turned off (server rejects, 422 "This alert is required for compliance").
+   383→- `offsetDays` editable within `[-30, 0]` for date-driven rules. The hourly `notify:paydates` worker reads THESE rules: for each company, for each upcoming resolved date (pay date, bacs_submission_date), if `today = date + offsetDays` and no notification row exists for `(companyId, key, date)` → insert notifications + email outbox. Idempotent by that natural key.
+   384→- Event-driven rules fan out at emit time (`rti:status rejected` → all bureau_admins of tenant).
+   385→- `myPreferences` is per-user (separate PUT `/api/settings/notifications/me`).
+   386→
+   387→## 3.9 SYSTEM — `/bureau/settings/system`  (bureau_admin only)
+   388→
+   389→**Payload:**
+   390→```ts
+   391→GET /api/settings/system →
+   392→{ version,
+   393→  bureau: { name, id },
+   394→  dataExport: { lastExportAt, formats:['csv-bundle','json'] },
+   395→  jobs: [{ queue:'payrun:calculate', waiting:0, failed:0, lastRun }, ...],   // read model from queue
+   396→  bankHolidaySync: { lastRunAt, nextRunAt, source:'gov.uk/bank-holidays.json' },
+   397→  dpsFetch:        { lastRunAt, highWaterMarks:{P6:n, SL1:n, ...} },
+   398→  appVersion, engineTaxYears:['2026-27'] }
+   399→```
+   400→
+   401→**Logic:**
+   402→- **Data export**: `POST /api/settings/system/export {format}` → job zips companies/employees (decrypted fields EXCLUDED — masked), pay runs, documents index → S3 signed URL → notification. Rate-limited 1/day. Audit `DATA_EXPORTED`.
+   403→- **Job health** cards: failed>0 → red chip + `Retry failed` (`POST /api/settings/system/jobs/:queue/retry-failed`).
+   404→- **Bank holiday sync now** / **DPS fetch now** buttons → enqueue the respective jobs (§PRD Part 10) → live status via WS `tenant:{id}` `job:done`.
+   405→- Bureau rename: PUT with audit. Everything else read-only telemetry.
+   406→
+   407→---
+   408→
+   409→# 4 — BACKGROUND JOBS OWNED BY SETTINGS
+   410→
+   411→| Job | Schedule | Reads settings | Writes |
+   412→|---|---|---|---|
+   413→| `tax:sync` | manual (Tax tab) | active year | sync diff → reviewed overrides |
+   414→| `bank-holidays:sync` | nightly 03:00 + manual | — | upsert bank_holidays, diff report notification |
+   415→| `notify:paydates` | hourly | notifications.rules | notifications + email outbox (idempotent per (company,key,date)) |
+   416→| `dps:fetch` | nightly 05:00 + manual | HMRC creds per company | dps_notices + high-water marks; apply job updates tax codes/SL flags |
+   417→| `bank-changes:apply` | every 10 min | — | applies pending_bank_changes past activates_at |
+   418→| `retention:anonymise` | weekly | compliance.retention | anonymises expired erasure requests |
+   419→| `system:export` | manual | — | S3 bundle + notification |
+   420→
+   421→---
+   422→
+   423→# 5 — STATE MACHINES
+   424→
+   425→```
+   426→Threshold override : viewing → modal(value, effectiveFrom, reason) → validating
+   427→                     → [committed-runs conflict? 409 blocked] → inserted(new effective row)
+   428→                     → engine cache invalidated → audited
+   429→HMRC sync          : idle → running(202 job) → { no-diff → verified }
+   430→                     | diff → review(modal) → per-row accept → inserted rows → done
+   431→HMRC creds verify  : untested → testing → ok | failed(reason shown, 1046 mapping)
+   432→User invite        : invited(token 7d) → accepted(active) | expired → resend
+   433→Bank details edit  : masked → editing(full re-entry) → modulus{pass→saved | fail→override(reason)→saved}
+   434→                     → [open approved run? 409] → audited
+   435→Section PUT (all)  : clean → dirty(optimistic) → saving → saved(refresh) | invalid(422 rollback)
+   436→                     | conflict(409 → refetch banner)
+   437→```
+   438→
+   439→---
+   440→
+   441→# 6 — ACCEPTANCE CHECKLIST (Settings module done =)
+   442→
+   443→1. Nav shows **Pension** in Inter 13/500 — pixel font gone; all 9 rows via one component; deep links + `#hmrc-credentials` anchor work.
+   444→2. Tax tab renders live `statutory_config` values for 2026-27 (PA £12,570 · NI PT £12,570 · ST £5,000 · UEL £50,270 · LEL £6,708 · Plan 5 £25,000 …) with variance vs 2025-26; override inserts an effective-dated row and a recalculated *draft* run picks it up while committed runs don't.
+   445→3. HMRC sync produces a reviewable diff and never auto-applies.
+   446→4. Pension rate below statutory floor is rejected 422; relief-method change shows a real-engine worked example and only affects future runs.
+   447→5. Bank edit enforces re-entry + modulus with audited override; blocked while an approved run is open.
+   448→6. Last bureau_admin cannot be demoted/disabled; role changes force re-login.
+   449→7. Gateway password write-only; Test button drives status; RTI 1046 deep-link lands on the card.
+   450→8. Locked notification rules cannot be disabled; paydate notifications fire exactly once per (company,key,date).
+   451→9. Every accepted change appears in the audit ledger with before/after and the chain verifies.
+   452→10. All tab payloads carry `version`; concurrent edits produce the 409 banner, never silent overwrite.
+   453→
+   454→## END — SETTINGS MODULE SPEC v1.0. Build order: fix nav → shared PUT/GET plumbing (§2) → Tax → Pension → Bank → Users → Security → Compliance → Notifications → System.
+   455→
