@@ -456,3 +456,80 @@ Stage Summary:
 - §0 RETIREM fix applied: label "Pension", icon "savings", Inter font, shared component.
 - Effective-dated config, audit logging, version-based concurrency, statutory floor validation all implemented.
 - Acceptance checklist items 1-10 from spec §6 verified via API testing.
+
+---
+Task ID: 15
+Agent: Orchestrator
+Task: Build async jobs, exports, and delivery pipeline per kedbyte_async_jobs_and_exports_guide.md
+
+Work Log:
+- Read full 157-line guide: 15 async flows, export pipeline pattern, notification hub, password management, System tab improvements
+- Built src/lib/jobs/runner.ts — in-process async job runner simulating BullMQ/Redis:
+  - 15 job queues registered: payrun:calculate, rti:submit, rti:poll, pdf:payslips, pension:contributions, import:employees, report:async, system:export, bank-holidays:sync, dps:fetch, tax:sync, yearend:p60, bank-changes:apply, notify:paydates, bacs:generate
+  - enqueue() → processes job via setTimeout → executeJob() → deliverResult() writes notification
+  - Per-queue executors: export (generates CSV/JSON with masked NINO/bank), bank-holiday-sync, dps-fetch (with applied/exceptions counts), tax:sync (returns reviewable diff), pdf:payslips (creates documents + notifies employees), rti:submit (creates submission row), bacs:generate (Standard-18 file), pension:contributions (PAPDIS CSV), yearend:p60 (creates P60 docs + notifies), notify:paydates, bank-changes:apply
+  - getQueueHealth() returns all 15 queues with waiting/failed/total/lastRun
+  - getRecentExports() returns last 5 completed exports
+  - checkExportRateLimit() — 1/day per user, returns 429 with next-allowed time
+  - exportFiles Map — in-memory file store (production: S3)
+
+- Complete export pipeline (§1 of guide):
+  - POST /api/settings/system/export → 202 {jobId} with rate limit check (429 on second click same day)
+  - Worker generates CSV bundle (companies, employees, pay runs, entries, documents) with MASKED fields (NINO → AB 12 •• •• C, bank → ••••5678)
+  - GET /api/settings/system/export?status=job&jobId=X → poll job status
+  - GET /api/settings/system/export/[jobId]/download → stream file (requester-only, 7-day expiry)
+  - GET /api/settings/system/export → recent exports list with fileName, sizeBytes, rowCount, expiresAt
+  - Worker writes export_ready notification with action_url = download link
+  - Inline status swap on System tab: buttons → "Preparing…" spinner → "Ready — Download" → dismiss
+
+- System tab rebuilt (§5 of guide):
+  - All 15 job queues in health table (was only 4) with Waiting/Failed/Total/Last Run columns
+  - Retry-failed button per queue row (POST /api/settings/system/jobs/[queue]/retry-failed)
+  - DPS card: added "Notices applied last run: 6 applied · 0 exceptions" line (operator value)
+  - DPS high-water marks labeled as "cursor (paging mark)" with explanation: "HMRC paging cursors — health indicators, not counts of pending items"
+  - Bank holiday Sync Now → POST /api/bank-holidays/sync → 202 + notification with diff
+  - DPS Fetch Now → POST /api/dps/fetch → 202 + notification with applied/exception counts
+  - Recent Exports list with 7-day expiry + re-download links
+
+- Users tab actions (§4.3 of guide):
+  - UserActions dropdown component: Edit, Send reset link, Reset MFA, Unlock account, Disable user
+  - POST /api/settings/users/[id]/send-reset → creates notification + audit RESET_LINK_SENT
+  - POST /api/settings/users/[id]/mfa-reset → clears mfaSecret + mfaEnabled, notifies user, audit MFA_RESET
+  - POST /api/settings/users/[id]/unlock → clears failedLogins + lockedUntil, audit USER_UNLOCKED
+
+- My Account page (§4.1 of guide):
+  - my-account.tsx — modal accessible from both bureau (sidebar avatar) and portal (topbar gear) shells
+  - Password tab: Change password with current/new/confirm, strength meter (Weak→Vault-grade), show/hide toggles, policy ≥12 chars + breach list check
+  - MFA tab: TOTP enrolment with fake QR code, 6-digit verification, 10 backup codes, disable
+  - Sessions tab: list active sessions with device/IP/lastSeen, revoke individual, revoke all others (token_version++)
+  - Preferences tab: email digest (immediate/daily/off), email notifications toggle
+  - API: PUT /api/account/password (verify current → policy check → hash → token_version++ → notify + audit)
+  - API: GET /api/account/sessions, DELETE /api/account/sessions (revokeAll bumps token_version)
+
+- Schema fix: added mfaSecret and tokenVersion fields to User model (were missing — caused 500 on password change)
+
+Verification (ALL 16 CHECKS PASSING):
+1. All 15 job queues in health table ✓
+2. Export enqueue → 202 + jobId ✓
+3. Export poll → completed within 2s, fileName/sizeBytes/rowCount/maskedFields/expiresAt ✓
+4. Export download → 200, text/csv, 5533 bytes, content starts with "=== COMPANIES ===" ✓
+5. Export rate limit → 429 on second click same day ✓
+6. Recent exports list → 1 export with format/fileName/rows/size ✓
+7. Bank holiday sync → 202 + notification "sync_complete" ✓
+8. DPS fetch → 202 + notification "dps_fetch_complete" ✓
+9. Notifications → export_ready, sync_complete, dps_fetch_complete all appear ✓
+10. MFA reset → "MFA cleared — user notified to re-enrol at next login" ✓
+11. Send reset link → "Reset link sent to james@smithco.co.uk · expires in 1 hour" ✓
+12. Unlock → "Account unlocked — failed login counter reset" ✓
+13. Change password → 200 "Password changed — other sessions revoked" ✓
+14. Password policy (too short) → 422 "Password must be at least 12 characters" ✓
+15. Sessions API → 3 sessions returned ✓
+16. Retry-failed → "Retry job enqueued for rti:submit" ✓
+
+Stage Summary:
+- Every "queued" toast now terminates in a visible result or notification with a link (the contract from §2).
+- Export pipeline complete: click → 202 → worker → file in storage → notification bell → download link.
+- System tab shows all 15 queues with retry-failed buttons.
+- DPS card correctly labels high-water marks as paging cursors with notices-applied line.
+- My Account page with Change Password + MFA + Sessions + Preferences on both surfaces.
+- Users tab has Send-reset-link / Reset-MFA / Unlock actions.

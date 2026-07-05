@@ -4,6 +4,7 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { useApp, type BureauView } from "@/store/app";
 import { toast } from "@/components/kedbyte/primitives";
+import { MyAccountModal } from "@/components/kedbyte/my-account";
 
 // Lazy-load views to reduce initial compile memory pressure
 const BureauDashboard = dynamic(() => import("@/components/kedbyte/views/bureau-dashboard").then(m => ({ default: m.BureauDashboard })), { ssr: false });
@@ -51,6 +52,7 @@ const VIEW_LABELS: Record<BureauView, string> = {
 
 export function BureauShell() {
   const { user, bureauView, setBureauView, logout } = useApp();
+  const [accountOpen, setAccountOpen] = React.useState(false);
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState<any[]>([]);
 
@@ -121,17 +123,21 @@ export function BureauShell() {
           ))}
         </nav>
         <div className="border-t border-subtle p-3">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 bg-surface-high border border-subtle flex items-center justify-center">
+          <button
+            onClick={() => setAccountOpen(true)}
+            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-surface-high transition-colors group"
+          >
+            <div className="w-8 h-8 bg-surface-high border border-subtle flex items-center justify-center group-hover:border-pearl-dim transition-colors">
               <span className="text-[12px] font-mono font-bold text-pearl">
                 {user?.name?.[0]?.toUpperCase() || "A"}
               </span>
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 text-left">
               <div className="text-[12px] text-tprimary font-medium truncate">{user?.name}</div>
               <div className="text-[10px] text-ttertiary font-mono truncate">{user?.email}</div>
             </div>
-          </div>
+            <span className="material-symbols-outlined text-[14px] text-ttertiary group-hover:text-pearl transition-colors">manage_accounts</span>
+          </button>
           <button
             onClick={() => { logout(); toast("Signed out", "info"); }}
             className="w-full flex items-center gap-3 px-3 py-2 text-[12px] text-tsecondary hover:text-error transition-colors mt-1"
@@ -208,6 +214,7 @@ export function BureauShell() {
           {renderView()}
         </main>
       </div>
+      <MyAccountModal open={accountOpen} onClose={() => setAccountOpen(false)} />
     </div>
   );
 }
