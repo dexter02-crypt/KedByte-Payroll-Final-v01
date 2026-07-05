@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Smith &amp; Co Ltd Employee Portal - Sign In</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#b7b4b7",
+                        "primary-fixed": "#e6e2de",
+                        "secondary-fixed": "#e5e1e4",
+                        "on-tertiary-fixed": "#1d1b1d",
+                        "surface-container-lowest": "#0f0e0e",
+                        "tertiary": "#ffffff",
+                        "on-secondary": "#313032",
+                        "on-primary-fixed": "#1c1b19",
+                        "on-primary": "#31302e",
+                        "surface-container": "#201f1f",
+                        "surface-tint": "#c9c6c2",
+                        "surface-container-high": "#2b2a29",
+                        "background": "#0C0C0E", // Updated to match void requirement exactly for this view
+                        "on-error": "#690005",
+                        "on-tertiary": "#323031",
+                        "primary": "#E8E4E0", // Updated to pearl accent
+                        "on-error-container": "#ffdad6",
+                        "inverse-primary": "#605e5b",
+                        "on-background": "#e5e2e1",
+                        "on-tertiary-fixed-variant": "#494648",
+                        "outline-variant": "#484740",
+                        "on-surface-variant": "#cac6bd",
+                        "surface-container-highest": "#363434",
+                        "error-container": "#93000a",
+                        "secondary-fixed-dim": "#c8c6c8",
+                        "tertiary-fixed": "#e7e1e3",
+                        "surface-dim": "#141313",
+                        "primary-fixed-dim": "#c9c6c2",
+                        "primary-container": "#e6e2de",
+                        "error": "#ffb4ab",
+                        "on-tertiary-container": "#676365",
+                        "surface": "#141416", // Updated to specific surface color
+                        "surface-variant": "#363434",
+                        "surface-bright": "#3a3938",
+                        "inverse-on-surface": "#313030",
+                        "on-primary-fixed-variant": "#484744",
+                        "on-primary-container": "#666461",
+                        "secondary": "#c8c6c8",
+                        "on-secondary-fixed-variant": "#474649",
+                        "inverse-surface": "#e5e2e1",
+                        "secondary-container": "#474649",
+                        "tertiary-container": "#e7e1e3",
+                        "on-secondary-fixed": "#1b1b1d",
+                        "surface-container-low": "#1c1b1b",
+                        "tertiary-fixed-dim": "#cac5c7",
+                        "on-surface": "#e5e2e1",
+                        "outline": "#939188"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "row-height": "48px",
+                        "command-height": "44px",
+                        "container-gap": "64px",
+                        "rail-width": "48px",
+                        "section-gap": "32px",
+                        "element-gap": "12px"
+                    },
+                    "fontFamily": {
+                        "page-title": ["Inter"],
+                        "data-sm": ["JetBrains Mono"],
+                        "label-caps": ["Inter"],
+                        "section-title": ["Inter"],
+                        "data-lg": ["JetBrains Mono"],
+                        "body-main": ["Inter"]
+                    },
+                    "fontSize": {
+                        "page-title": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "data-sm": ["14px", { "lineHeight": "20px", "letterSpacing": "0px", "fontWeight": "500" }],
+                        "label-caps": ["11px", { "lineHeight": "14px", "letterSpacing": "0.08em", "fontWeight": "600" }],
+                        "section-title": ["13px", { "lineHeight": "16px", "letterSpacing": "0.06em", "fontWeight": "500" }],
+                        "data-lg": ["28px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-main": ["15px", { "lineHeight": "24px", "letterSpacing": "0px", "fontWeight": "400" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #0C0C0E; /* Absolute black void */
+            color: #e5e2e1;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* Minimal input styling */
+        .void-input {
+            background-color: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(245, 245, 245, 0.08);
+            border-radius: 0;
+            color: #F5F5F5;
+            padding: 0;
+            height: 48px;
+            width: 100%;
+            transition: border-color 0.2s ease;
+        }
+        
+        .void-input:focus {
+            outline: none;
+            box-shadow: none;
+            border-bottom-color: #E8E4E0; /* Pearl accent */
+        }
+        
+        .void-input:-webkit-autofill,
+        .void-input:-webkit-autofill:hover, 
+        .void-input:-webkit-autofill:focus, 
+        .void-input:-webkit-autofill:active{
+            -webkit-box-shadow: 0 0 0 30px #0C0C0E inset !important;
+            -webkit-text-fill-color: #F5F5F5 !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+
+        /* Button styling */
+        .pearl-btn {
+            background-color: #E8E4E0;
+            color: #0C0C0E;
+            height: 48px;
+            border-radius: 8px;
+            font-weight: 500;
+            width: 100%;
+            transition: opacity 0.2s ease;
+        }
+        
+        .pearl-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<!-- 
+Semantic Shell Logic (The Filter):
+This is a Linear/Transactional screen (Login). 
+Therefore, TopAppBar, SideNavBar, and FAB MUST be completely suppressed.
+-->
+<body class="antialiased selection:bg-surface-variant selection:text-primary">
+<main class="w-full max-w-[360px] px-6 py-12 flex flex-col items-center">
+<!-- Logo & Header Section -->
+<div class="flex flex-col items-center w-full mb-[48px]">
+<div class="w-12 h-12 bg-surface rounded-full flex items-center justify-center border border-[rgba(245,245,245,0.06)] mb-6">
+<span class="text-[#E8E4E0] font-semibold text-[16px] tracking-tight">SC</span>
+</div>
+<h1 class="text-[#F5F5F5] font-medium text-[14px] text-center tracking-wide">
+                Smith &amp; Co Ltd Employee Portal
+            </h1>
+<div class="w-[32px] h-[1px] bg-[#E8E4E0] my-4 opacity-50"></div>
+<p class="text-[#A1A1AA] text-[13px] text-center">
+                Sign in with your work email
+            </p>
+</div>
+<!-- Form Section -->
+<form class="w-full flex flex-col gap-6" onsubmit="event.preventDefault();">
+<!-- Email Input -->
+<div class="relative w-full">
+<label class="block text-[#A1A1AA] text-[10px] uppercase tracking-widest font-semibold mb-1" for="email">
+                    Email
+                </label>
+<input autocomplete="email" class="void-input text-[15px]" id="email" placeholder="" required="" spellcheck="false" type="email"/>
+</div>
+<!-- Password Input -->
+<div class="relative w-full">
+<label class="block text-[#A1A1AA] text-[10px] uppercase tracking-widest font-semibold mb-1" for="password">
+                    Password
+                </label>
+<div class="relative">
+<input autocomplete="current-password" class="void-input text-[15px] pr-10" id="password" placeholder="" required="" type="password"/>
+<button aria-label="Toggle password visibility" class="absolute right-0 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-[#E8E4E0] transition-colors h-full px-2 flex items-center" type="button">
+<span class="material-symbols-outlined" style="font-size: 20px;">visibility</span>
+</button>
+</div>
+</div>
+<!-- Forgot Password Link -->
+<div class="w-full flex justify-center mt-2 mb-2">
+<a class="text-[#A1A1AA] text-[13px] hover:text-[#E8E4E0] transition-colors" href="#">
+                    Forgot password?
+                </a>
+</div>
+<!-- Submit Button -->
+<button class="pearl-btn mt-2" type="submit">
+                Sign In
+            </button>
+</form>
+<!-- Divider -->
+<div class="w-full flex items-center gap-4 my-8">
+<div class="h-[1px] flex-1 bg-[rgba(245,245,245,0.06)]"></div>
+<span class="text-[#52525B] text-[11px] uppercase tracking-widest">or</span>
+<div class="h-[1px] flex-1 bg-[rgba(245,245,245,0.06)]"></div>
+</div>
+<!-- Secondary Action -->
+<div class="w-full flex justify-center">
+<p class="text-[#A1A1AA] text-[13px] text-center">
+                First time here? 
+                <a class="text-[#F5F5F5] font-medium hover:text-[#E8E4E0] transition-colors ml-1" href="#">Activate your account</a>
+</p>
+</div>
+</main>
+<!-- Footer -->
+<footer class="absolute bottom-8 w-full text-center">
+<p class="text-[#52525B] text-[11px] tracking-widest uppercase opacity-80">
+            Powered by Kedbyte
+        </p>
+</footer>
+</body></html>

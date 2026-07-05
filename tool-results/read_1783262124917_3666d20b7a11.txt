@@ -1,0 +1,817 @@
+     1→// ============================================================
+     2→// KEDBYTE PAYROLL — CALCULATION ENGINE
+     3→// Pure functions, zero I/O. 2026/27 statutory constants.
+     4→// Worked proof (§5.13) verified: £36k → net £2,305.44
+     5→// ============================================================
+     6→
+     7→// ============ 5.1 STATUTORY CONSTANTS (2026/27) ============
+     8→export const TAX_YEAR = "2026-27";
+     9→
+    10→export const STAT = {
+    11→  personalAllowance: 12570, // frozen → 2031
+    12→  emergencyCode: "1257L",
+    13→  // rUK bands (annual taxable)
+    14→  rukBasicRate: 0.2,
+    15→  rukBasicCeiling: 37700,
+    16→  rukHigherRate: 0.4,
+    17→  rukHigherCeiling: 112570, // PA withdrawn by 100k+£1:2
+    18→  rukAdditionalRate: 0.45,
+    19→  // NI monthly thresholds
+    20→  niLelMonthly: 559,
+    21→  niPtMonthly: 1048,
+    22→  niStMonthly: 417, // employer secondary threshold
+    23→  niUelMonthly: 4189,
+    24→  niFreeportUstMonthly: 2083,
+    25→  // NI rates
+    26→  niEeMainRate: 0.08,
+    27→  niEeUpperRate: 0.02,
+    28→  niEeReducedRate: 0.0185, // cat B
+    29→  niErRate: 0.15,
+    30→  // Employment Allowance
+    31→  employmentAllowance: 10500,
+    32→  // Auto-enrolment
+    33→  aeTriggerAnnual: 10000,
+    34→  aeTriggerMonthly: 833,
+    35→  aeQeLowerMonthly: 520,
+    36→  aeQeUpperMonthly: 4189.17,
+    37→  aeMinTotal: 0.08,
+    38→  aeMinEmployer: 0.03,
+    39→  // Student loans (annual thresholds)
+    40→  slPlan1Annual: 26900,
+    41→  slPlan2Annual: 29385,
+    42→  slPlan4Annual: 33795,
+    43→  slPlan5Annual: 25000,
+    44→  slRate: 0.09,
+    45→  pglAnnual: 21000,
+    46→  pglRate: 0.06,
+    47→  // Statutory pay
+    48→  sspWeeklyMax: 123.25,
+    49→  sspWeeklyMinFraction: 0.8,
+    50→  smpWeeklyFlat: 194.32, // weeks 7-39
+    51→  // NMW
+    52→  nlw21: 12.71,
+    53→  nmw18to20: 10.85,
+    54→  nmw16to17: 8.0,
+    55→  nmwApprentice: 8.0,
+    56→} as const;
+    57→
+    58→// ============ 5.2 MONEY ROUNDING ============
+    59→/** Floor to whole pounds — taxable pay to date; student loan deduction */
+    60→export function floorPound(v: number): number {
+    61→  return Math.floor(v);
+    62→}
+    63→
+    64→/** Floor to penny (truncate) — tax due to date */
+    65→export function floorPenny(v: number): number {
+    66→  return Math.floor(v * 100) / 100;
+    67→}
+    68→
+    69→/** Nearest penny, half-penny rounds DOWN — every NI product */
+    70→export function niRound(v: number): number {
+    71→  // round half toward zero (half DOWN) — i.e. 0.5¢ → 0¢
+    72→  const cents = v * 100;
+    73→  const floored = Math.floor(cents);
+    74→  const frac = cents - floored;
+    75→  if (frac > 0.5) return (floored + 1) / 100;
+    76→  return floored / 100; // includes exact 0.5 → rounds down
+    77→}
+    78→
+    79→/** Commercial 2dp — pension contributions, display sums */
+    80→export function round2(v: number): number {
+    81→  return Math.round(v * 100) / 100;
+    82→}
+    83→
+    84→// ============ 5.3 TAX CODE PARSER ============
+    85→export interface ParsedTaxCode {
+    86→  raw: string;
+    87→  regime: "ruk" | "scotland" | "wales";
+    88→  week1Month1: boolean;
+    89→  isNt: boolean;
+    90→  isKCode: boolean;
+    91→  isFlat: boolean;
+    92→  flatRate?: number;
+    93→  annualFreePay: number; // for suffix codes (L/M/N/T)
+    94→  annualAdditionalPay: number; // for K codes
+    95→  code: string;
+    96→}
+    97→
+    98→const FLAT_CODES: Record<string, { rate: number; regime: string }> = {
+    99→  BR: { rate: 0.2, regime: "ruk" },
+   100→  D0: { rate: 0.4, regime: "ruk" },
+   101→  D1: { rate: 0.45, regime: "ruk" },
+   102→  SBR: { rate: 0.2, regime: "scotland" },
+   103→  SD0: { rate: 0.21, regime: "scotland" },
+   104→  SD1: { rate: 0.42, regime: "scotland" },
+   105→  SD2: { rate: 0.45, regime: "scotland" },
+   106→  SD3: { rate: 0.48, regime: "scotland" },
+   107→  CBR: { rate: 0.2, regime: "wales" },
+   108→  CD0: { rate: 0.4, regime: "wales" },
+   109→  CD1: { rate: 0.45, regime: "wales" },
+   110→};
+   111→
+   112→export function parseTaxCode(input: string): ParsedTaxCode {
+   113→  let raw = (input || "").toUpperCase().replace(/\s+/g, "");
+   114→  let regime: "ruk" | "scotland" | "wales" = "ruk";
+   115→  if (raw.startsWith("S")) {
+   116→    regime = "scotland";
+   117→    raw = raw.slice(1);
+   118→  } else if (raw.startsWith("C")) {
+   119→    // C prefix = Wales only if followed by flat code or number
+   120→    if (/^C\d/.test(raw) || raw === "C0T" || raw === "CBR" || raw === "CD0" || raw === "CD1") {
+   121→      regime = "wales";
+   122→      raw = raw.slice(1);
+   123→    }
+   124→  }
+   125→
+   126→  // W1/M1 detection
+   127→  let week1Month1 = false;
+   128→  if (raw.endsWith("W1") || raw.endsWith("M1")) {
+   129→    week1Month1 = true;
+   130→    raw = raw.slice(0, -2);
+   131→  } else if (raw.endsWith("X") && raw.length > 1 && !FLAT_CODES[raw]) {
+   132→    week1Month1 = true;
+   133→    raw = raw.slice(0, -1);
+   134→  }
+   135→
+   136→  // NT — no tax
+   137→  if (raw === "NT") {
+   138→    return {
+   139→      raw: input,
+   140→      regime,
+   141→      week1Month1,
+   142→      isNt: true,
+   143→      isKCode: false,
+   144→      isFlat: false,
+   145→      annualFreePay: 0,
+   146→      annualAdditionalPay: 0,
+   147→      code: input.toUpperCase().replace(/\s+/g, ""),
+   148→    };
+   149→  }
+   150→
+   151→  // Flat codes
+   152→  if (FLAT_CODES[raw]) {
+   153→    return {
+   154→      raw: input,
+   155→      regime: FLAT_CODES[raw].regime as any,
+   156→      week1Month1,
+   157→      isNt: false,
+   158→      isKCode: false,
+   159→      isFlat: true,
+   160→      flatRate: FLAT_CODES[raw].rate,
+   161→      annualFreePay: 0,
+   162→      annualAdditionalPay: 0,
+   163→      code: input.toUpperCase().replace(/\s+/g, ""),
+   164→    };
+   165→  }
+   166→
+   167→  // 0T — zero free pay
+   168→  if (raw === "0T") {
+   169→    return {
+   170→      raw: input,
+   171→      regime,
+   172→      week1Month1,
+   173→      isNt: false,
+   174→      isKCode: false,
+   175→      isFlat: false,
+   176→      annualFreePay: 0,
+   177→      annualAdditionalPay: 0,
+   178→      code: input.toUpperCase().replace(/\s+/g, ""),
+   179→    };
+   180→  }
+   181→
+   182→  // K codes: K{n} → annualAdditionalPay = n×10+9
+   183→  const kMatch = raw.match(/^K(\d+)$/);
+   184→  if (kMatch) {
+   185→    return {
+   186→      raw: input,
+   187→      regime,
+   188→      week1Month1,
+   189→      isNt: false,
+   190→      isKCode: true,
+   191→      isFlat: false,
+   192→      annualFreePay: 0,
+   193→      annualAdditionalPay: parseInt(kMatch[1]) * 10 + 9,
+   194→      code: input.toUpperCase().replace(/\s+/g, ""),
+   195→    };
+   196→  }
+   197→
+   198→  // Suffix codes: {n}[L|M|N|T] → annualFreePay = n×10+9
+   199→  const suffixMatch = raw.match(/^(\d+)([LMNT])$/);
+   200→  if (suffixMatch) {
+   201→    return {
+   202→      raw: input,
+   203→      regime,
+   204→      week1Month1,
+   205→      isNt: false,
+   206→      isKCode: false,
+   207→      isFlat: false,
+   208→      annualFreePay: parseInt(suffixMatch[1]) * 10 + 9,
+   209→      annualAdditionalPay: 0,
+   210→      code: input.toUpperCase().replace(/\s+/g, ""),
+   211→    };
+   212→  }
+   213→
+   214→  // Unknown — throw (surface as field validation)
+   215→  throw new Error(`Unrecognised tax code: ${input}`);
+   216→}
+   217→
+   218→// ============ 5.4 PAYE ============
+   219→export interface PayeInput {
+   220→  taxCode: string;
+   221→  period: number; // tax month 1..12 (W1/M1 ⇒ p=1)
+   222→  grossTaxableThisPeriod: number;
+   223→  ytdTaxable: number;
+   224→  ytdTaxPaid: number;
+   225→}
+   226→
+   227→export interface PayeResult {
+   228→  tax: number;
+   229→  taxablePayToDate: number;
+   230→  freePayToDate: number;
+   231→  regulatoryLimited: boolean;
+   232→  code: string;
+   233→}
+   234→
+   235→export function calculatePAYE(inp: PayeInput): PayeResult {
+   236→  const parsed = parseTaxCode(inp.taxCode);
+   237→  if (parsed.isNt) {
+   238→    return { tax: 0, taxablePayToDate: 0, freePayToDate: 0, regulatoryLimited: false, code: parsed.code };
+   239→  }
+   240→
+   241→  const p = parsed.week1Month1 ? 1 : inp.period;
+   242→  const grossToDate = inp.ytdTaxable + inp.grossTaxableThisPeriod;
+   243→  const freePayToDate = round2((parsed.annualFreePay * p) / 12);
+   244→  const addlToDate = round2((parsed.annualAdditionalPay * p) / 12);
+   245→  const taxableToDate = floorPound(Math.max(0, grossToDate - freePayToDate + addlToDate));
+   246→
+   247→  let taxDueToDate: number;
+   248→  if (parsed.isFlat && parsed.flatRate !== undefined) {
+   249→    taxDueToDate = floorPenny(floorPound(grossToDate) * parsed.flatRate);
+   250→  } else if (parsed.regime === "scotland") {
+   251→    taxDueToDate = scottishTax(taxableToDate, p);
+   252→  } else {
+   253→    // rUK (wales mirrors rUK today)
+   254→    taxDueToDate = rukTax(taxableToDate, p);
+   255→  }
+   256→
+   257→  let tax = floorPenny(taxDueToDate - inp.ytdTaxPaid);
+   258→
+   259→  // REGULATORY LIMIT (K & 0T protection): tax ≤ 50% × grossTaxableThisPeriod
+   260→  let regulatoryLimited = false;
+   261→  const cap = inp.grossTaxableThisPeriod * 0.5;
+   262→  if (tax > cap) {
+   263→    tax = floorPenny(cap);
+   264→    regulatoryLimited = true;
+   265→  }
+   266→
+   267→  // Refund (negative) allowed through payroll
+   268→  return { tax, taxablePayToDate: taxableToDate, freePayToDate, regulatoryLimited, code: parsed.code };
+   269→}
+   270→
+   271→function rukTax(taxableToDate: number, p: number): number {
+   272→  const basicCeiling = (STAT.rukBasicCeiling * p) / 12;
+   273→  const higherCeiling = (STAT.rukHigherCeiling * p) / 12;
+   274→  let tax = 0;
+   275→  if (taxableToDate <= basicCeiling) {
+   276→    tax = taxableToDate * STAT.rukBasicRate;
+   277→  } else if (taxableToDate <= higherCeiling) {
+   278→    tax = basicCeiling * STAT.rukBasicRate + (taxableToDate - basicCeiling) * STAT.rukHigherRate;
+   279→  } else {
+   280→    tax =
+   281→      basicCeiling * STAT.rukBasicRate +
+   282→      (higherCeiling - basicCeiling) * STAT.rukHigherRate +
+   283→      (taxableToDate - higherCeiling) * STAT.rukAdditionalRate;
+   284→  }
+   285→  return floorPenny(tax);
+   286→}
+   287→
+   288→function scottishTax(taxableToDate: number, p: number): number {
+   289→  // Scottish bands (annual total) — pro-rated by period
+   290→  const bands = [
+   291→    { ceiling: 16537, rate: 0.19 }, // starter
+   292→    { ceiling: 29526, rate: 0.2 }, // basic
+   293→    { ceiling: 43662, rate: 0.21 }, // intermediate
+   294→    { ceiling: 75000, rate: 0.42 }, // higher
+   295→    { ceiling: 125140, rate: 0.45 }, // advanced
+   296→    { ceiling: Infinity, rate: 0.48 }, // top
+   297→  ];
+   298→  let tax = 0;
+   299→  let prevCeiling = 0;
+   300→  for (const band of bands) {
+   301→    const bandCeilingToDate = (band.ceiling * p) / 12;
+   302→    if (taxableToDate <= prevCeiling) break;
+   303→    const slice = Math.min(taxableToDate, bandCeilingToDate) - prevCeiling;
+   304→    if (slice > 0) tax += slice * band.rate;
+   305→    prevCeiling = bandCeilingToDate;
+   306→  }
+   307→  return floorPenny(tax);
+   308→}
+   309→
+   310→// ============ 5.5 NATIONAL INSURANCE ============
+   311→export interface NiInput {
+   312→  niableGross: number; // gross − salary-sacrifice (RAS/net-pay don't reduce)
+   313→  category: string; // A | B | C | H | J | M | V | X | Z
+   314→}
+   315→
+   316→export interface NiResult {
+   317→  employee: number;
+   318→  employer: number;
+   319→  earningsAtLel: number;
+   320→  earningsLelToPt: number;
+   321→  earningsPtToUel: number;
+   322→}
+   323→
+   324→export function calculateNI(inp: NiInput): NiResult {
+   325→  const E = inp.niableGross;
+   326→  const cat = (inp.category || "A").toUpperCase();
+   327→
+   328→  // Band figures (mandatory even when NI=0)
+   329→  const earningsAtLel = Math.min(E, STAT.niLelMonthly);
+   330→  const earningsLelToPt = Math.max(0, Math.min(E, STAT.niPtMonthly) - STAT.niLelMonthly);
+   331→  const earningsPtToUel = Math.max(0, Math.min(E, STAT.niUelMonthly) - STAT.niPtMonthly);
+   332→
+   333→  let employee = 0;
+   334→  let employer = 0;
+   335→
+   336→  // EMPLOYEE
+   337→  if (["A", "H", "M", "V"].includes(cat)) {
+   338→    const mainBand = Math.max(0, Math.min(E, STAT.niUelMonthly) - STAT.niPtMonthly);
+   339→    const upperBand = Math.max(0, E - STAT.niUelMonthly);
+   340→    employee = niRound(mainBand * STAT.niEeMainRate) + niRound(upperBand * STAT.niEeUpperRate);
+   341→  } else if (cat === "B") {
+   342→    const mainBand = Math.max(0, Math.min(E, STAT.niUelMonthly) - STAT.niPtMonthly);
+   343→    const upperBand = Math.max(0, E - STAT.niUelMonthly);
+   344→    employee = niRound(mainBand * STAT.niEeReducedRate) + niRound(upperBand * STAT.niEeUpperRate);
+   345→  } else if (["J", "Z"].includes(cat)) {
+   346→    const band = Math.max(0, E - STAT.niPtMonthly);
+   347→    employee = niRound(band * STAT.niEeUpperRate);
+   348→  } else if (["C", "X"].includes(cat)) {
+   349→    employee = 0;
+   350→  }
+   351→
+   352→  // EMPLOYER (15% above threshold)
+   353→  let erThreshold: number;
+   354→  if (["A", "B", "C", "J"].includes(cat)) {
+   355→    erThreshold = STAT.niStMonthly;
+   356→  } else if (["H", "M", "V", "Z"].includes(cat)) {
+   357→    erThreshold = STAT.niUelMonthly; // 0% below — replaces ST
+   358→  } else if (cat === "X") {
+   359→    erThreshold = Infinity;
+   360→  } else {
+   361→    erThreshold = STAT.niStMonthly;
+   362→  }
+   363→  const erBand = Math.max(0, E - erThreshold);
+   364→  employer = niRound(erBand * STAT.niErRate);
+   365→
+   366→  return { employee, employer, earningsAtLel, earningsLelToPt, earningsPtToUel };
+   367→}
+   368→
+   369→// ============ 5.6 STUDENT LOANS ============
+   370→export interface StudentLoanResult {
+   371→  studentLoan: number;
+   372→  postgradLoan: number;
+   373→}
+   374→
+   375→export function calculateStudentLoan(
+   376→  niableGross: number,
+   377→  plan?: string | null,
+   378→  postgrad?: boolean
+   379→): StudentLoanResult {
+   380→  let studentLoan = 0;
+   381→  let postgradLoan = 0;
+   382→
+   383→  if (plan) {
+   384→    let annualThreshold: number;
+   385→    switch (plan) {
+   386→      case "plan_1":
+   387→        annualThreshold = STAT.slPlan1Annual;
+   388→        break;
+   389→      case "plan_2":
+   390→        annualThreshold = STAT.slPlan2Annual;
+   391→        break;
+   392→      case "plan_4":
+   393→        annualThreshold = STAT.slPlan4Annual;
+   394→        break;
+   395→      case "plan_5":
+   396→        annualThreshold = STAT.slPlan5Annual;
+   397→        break;
+   398→      default:
+   399→        annualThreshold = STAT.slPlan5Annual;
+   400→    }
+   401→    const monthlyThreshold = annualThreshold / 12;
+   402→    studentLoan = floorPound(Math.max(0, niableGross - monthlyThreshold) * STAT.slRate);
+   403→  }
+   404→
+   405→  if (postgrad) {
+   406→    const monthlyThreshold = STAT.pglAnnual / 12;
+   407→    postgradLoan = floorPound(Math.max(0, niableGross - monthlyThreshold) * STAT.pglRate);
+   408→  }
+   409→
+   410→  return { studentLoan, postgradLoan };
+   411→}
+   412→
+   413→// ============ 5.7 PENSIONS ============
+   414→export interface PensionInput {
+   415→  earnings: number;
+   416→  basis: string; // qualifying_earnings | pensionable_full | total_earnings
+   417→  relief: string; // relief_at_source | net_pay | salary_sacrifice
+   418→  eeRate: number;
+   419→  erRate: number;
+   420→}
+   421→
+   422→export interface PensionResult {
+   423→  pensionableEarnings: number;
+   424→  eeGross: number;
+   425→  eeDeducted: number;
+   426→  er: number;
+   427→  reducesTaxable: number;
+   428→  reducesNIable: number;
+   429→}
+   430→
+   431→export function calculatePension(inp: PensionInput): PensionResult {
+   432→  let base: number;
+   433→  if (inp.basis === "qualifying_earnings") {
+   434→    base = Math.max(0, Math.min(inp.earnings, STAT.aeQeUpperMonthly) - STAT.aeQeLowerMonthly);
+   435→  } else {
+   436→    base = inp.earnings;
+   437→  }
+   438→  let eeGross = round2(base * inp.eeRate);
+   439→  let er = round2(base * inp.erRate);
+   440→
+   441→  let eeDeducted = 0;
+   442→  let reducesTaxable = 0;
+   443→  let reducesNIable = 0;
+   444→
+   445→  if (inp.relief === "relief_at_source") {
+   446→    eeDeducted = round2(eeGross * 0.8);
+   447→  } else if (inp.relief === "net_pay") {
+   448→    eeDeducted = eeGross;
+   449→    reducesTaxable = eeGross;
+   450→  } else if (inp.relief === "salary_sacrifice") {
+   451→    eeDeducted = 0;
+   452→    er = round2(er + eeGross);
+   453→    reducesTaxable = eeGross;
+   454→    reducesNIable = eeGross;
+   455→  }
+   456→
+   457→  return { pensionableEarnings: base, eeGross, eeDeducted, er, reducesTaxable, reducesNIable };
+   458→}
+   459→
+   460→// ============ 5.7 AE ASSESSMENT ============
+   461→export function assessAutoEnrolment(age: number, monthlyEarnings: number): {
+   462→  result: "eligible" | "non_eligible" | "entitled";
+   463→  action: "enrolled" | "postponed" | "none";
+   464→} {
+   465→  const spa = 67;
+   466→  if (age >= 22 && age <= spa && monthlyEarnings > STAT.aeTriggerMonthly) {
+   467→    return { result: "eligible", action: "enrolled" };
+   468→  }
+   469→  if (age >= 16 && age <= 74 && monthlyEarnings > STAT.aeTriggerMonthly) {
+   470→    return { result: "non_eligible", action: "none" };
+   471→  }
+   472→  if (age >= 16 && age <= 74 && monthlyEarnings <= STAT.aeQeUpperMonthly && monthlyEarnings > 0) {
+   473→    return { result: "entitled", action: "none" };
+   474→  }
+   475→  return { result: "entitled", action: "none" };
+   476→}
+   477→
+   478→// ============ 5.9 GROSS ASSEMBLY & NET ============
+   479→export interface GrossInput {
+   480→  salaryAnnual: number;
+   481→  contractedWeeklyHours: number;
+   482→  overtimeHours: number;
+   483→  overtimeMultiplier: number;
+   484→  bonus: number;
+   485→  commission: number;
+   486→  statutoryPay: number;
+   487→  adjustments: { label: string; amount: number; taxable: boolean; niable: boolean }[];
+   488→  workingDaysEmployed?: number;
+   489→  workingDaysInPeriod?: number;
+   490→}
+   491→
+   492→export interface GrossResult {
+   493→  hourly: number;
+   494→  basic: number;
+   495→  overtime: number;
+   496→  gross: number;
+   497→  adjustmentsTotal: number;
+   498→}
+   499→
+   500→export function assembleGross(inp: GrossInput): GrossResult {
+   501→  const hourly = inp.salaryAnnual / 52 / inp.contractedWeeklyHours;
+   502→  let basic = inp.salaryAnnual / 12;
+   503→  if (
+   504→    inp.workingDaysEmployed !== undefined &&
+   505→    inp.workingDaysInPeriod !== undefined &&
+   506→    inp.workingDaysInPeriod > 0 &&
+   507→    inp.workingDaysEmployed < inp.workingDaysInPeriod
+   508→  ) {
+   509→    basic = round2((basic * inp.workingDaysEmployed) / inp.workingDaysInPeriod);
+   510→  }
+   511→  const overtime = inp.overtimeHours * hourly * inp.overtimeMultiplier;
+   512→  const adjustmentsTotal = inp.adjustments.reduce((s, a) => s + a.amount, 0);
+   513→  const gross = round2(
+   514→    basic + overtime + inp.bonus + inp.commission + inp.statutoryPay + adjustmentsTotal
+   515→  );
+   516→  return { hourly: round2(hourly), basic: round2(basic), overtime: round2(overtime), gross, adjustmentsTotal: round2(adjustmentsTotal) };
+   517→}
+   518→
+   519→// ============ ORCHESTRATOR ============
+   520→export interface CalculateEmployeeInput {
+   521→  salaryAnnual: number;
+   522→  contractedWeeklyHours: number;
+   523→  taxCode: string;
+   524→  niCategory: string;
+   525→  studentLoanPlan?: string | null;
+   526→  postgradLoan?: boolean;
+   527→  pensionEnrolled: boolean;
+   528→  period: number;
+   529→  overtimeHours: number;
+   530→  overtimeMultiplier: number;
+   531→  bonus: number;
+   532→  commission: number;
+   533→  statutoryPay: number;
+   534→  adjustments: { label: string; amount: number; taxable: boolean; niable: boolean }[];
+   535→  ytdTaxable: number;
+   536→  ytdTaxPaid: number;
+   537→  pensionBasis: string;
+   538→  pensionRelief: string;
+   539→  pensionEeRate: number;
+   540→  pensionErRate: number;
+   541→  prevNet?: number;
+   542→}
+   543→
+   544→export interface CalculateEmployeeResult {
+   545→  hourly: number;
+   546→  basic: number;
+   547→  overtime: number;
+   548→  gross: number;
+   549→  taxableGross: number;
+   550→  niableGross: number;
+   551→  tax: number;
+   552→  niEmployee: number;
+   553→  niEmployer: number;
+   554→  pensionEmployee: number;
+   555→  pensionEmployer: number;
+   556→  pensionEeGross: number;
+   557→  studentLoan: number;
+   558→  postgradLoan: number;
+   559→  net: number;
+   560→  employerCost: number;
+   561→  earningsAtLel: number;
+   562→  earningsLelPt: number;
+   563→  earningsPtUel: number;
+   564→  variancePct: number | null;
+   565→  varianceFlag: "none" | "warn" | "error";
+   566→  log: EngineLogLine[];
+   567→}
+   568→
+   569→export interface EngineLogLine {
+   570→  ts: string;
+   571→  text: string;
+   572→  level: "info" | "ok" | "warn" | "error";
+   573→}
+   574→
+   575→export function calculateEmployee(inp: CalculateEmployeeInput): CalculateEmployeeResult {
+   576→  const log: EngineLogLine[] = [];
+   577→  const ts = () => new Date().toISOString().slice(11, 23);
+   578→  const push = (text: string, level: EngineLogLine["level"] = "info") =>
+   579→    log.push({ ts: ts(), text, level });
+   580→
+   581→  push(`> INITIALIZING PAY RUN ENGINE…`);
+   582→  push(`> LOADING TAX CODES AND THRESHOLDS… OK`, "ok");
+   583→  push(`> Tax year 2026/27 · Period M${inp.period}`);
+   584→
+   585→  const grossR = assembleGross({
+   586→    salaryAnnual: inp.salaryAnnual,
+   587→    contractedWeeklyHours: inp.contractedWeeklyHours,
+   588→    overtimeHours: inp.overtimeHours,
+   589→    overtimeMultiplier: inp.overtimeMultiplier,
+   590→    bonus: inp.bonus,
+   591→    commission: inp.commission,
+   592→    statutoryPay: inp.statutoryPay,
+   593→    adjustments: inp.adjustments,
+   594→  });
+   595→  push(`> Gross assembled: £${grossR.gross.toFixed(2)} (basic ${grossR.basic.toFixed(2)} + OT ${grossR.overtime.toFixed(2)} + adjustments ${grossR.adjustmentsTotal.toFixed(2)})`);
+   596→
+   597→  let pensionR: PensionResult | null = null;
+   598→  if (inp.pensionEnrolled) {
+   599→    pensionR = calculatePension({
+   600→      earnings: grossR.gross,
+   601→      basis: inp.pensionBasis,
+   602→      relief: inp.pensionRelief,
+   603→      eeRate: inp.pensionEeRate,
+   604→      erRate: inp.pensionErRate,
+   605→    });
+   606→    push(`> Pension [${inp.pensionBasis}/${inp.pensionRelief}]: pensionable £${pensionR.pensionableEarnings.toFixed(2)} · EE deducted £${pensionR.eeDeducted.toFixed(2)} · ER £${pensionR.er.toFixed(2)}`);
+   607→  }
+   608→
+   609→  const taxableGross = round2(grossR.gross - (pensionR?.reducesTaxable || 0));
+   610→  const niableGross = round2(grossR.gross - (pensionR?.reducesNIable || 0));
+   611→  push(`> Taxable gross £${taxableGross.toFixed(2)} · NI-able gross £${niableGross.toFixed(2)}`);
+   612→
+   613→  const payeR = calculatePAYE({
+   614→    taxCode: inp.taxCode,
+   615→    period: inp.period,
+   616→    grossTaxableThisPeriod: taxableGross,
+   617→    ytdTaxable: inp.ytdTaxable,
+   618→    ytdTaxPaid: inp.ytdTaxPaid,
+   619→  });
+   620→  push(`> PAYE [${payeR.code}]: tax £${payeR.tax.toFixed(2)}${payeR.regulatoryLimited ? " (regulatory-limited 50%)" : ""}`);
+   621→
+   622→  const niR = calculateNI({ niableGross, category: inp.niCategory });
+   623→  push(`> NI [cat ${inp.niCategory}]: EE £${niR.employee.toFixed(2)} · ER £${niR.employer.toFixed(2)}`);
+   624→
+   625→  const slR = calculateStudentLoan(niableGross, inp.studentLoanPlan, inp.postgradLoan);
+   626→  if (inp.studentLoanPlan) {
+   627→    push(`> Student loan [${inp.studentLoanPlan}]: £${slR.studentLoan.toFixed(2)}`);
+   628→  }
+   629→  if (inp.postgradLoan) {
+   630→    push(`> Postgraduate loan: £${slR.postgradLoan.toFixed(2)}`);
+   631→  }
+   632→
+   633→  const net = round2(
+   634→    grossR.gross -
+   635→      payeR.tax -
+   636→      niR.employee -
+   637→      (pensionR?.eeDeducted || 0) -
+   638→      slR.studentLoan -
+   639→      slR.postgradLoan
+   640→  );
+   641→  const employerCost = round2(grossR.gross + niR.employer + (pensionR?.er || 0));
+   642→
+   643→  push(`> NET PAY £${net.toFixed(2)} · EMPLOYER COST £${employerCost.toFixed(2)}`, "ok");
+   644→
+   645→  let variancePct: number | null = null;
+   646→  let varianceFlag: "none" | "warn" | "error" = "none";
+   647→  if (inp.prevNet !== undefined && inp.prevNet > 0) {
+   648→    variancePct = round2(((net - inp.prevNet) / inp.prevNet) * 100);
+   649→    if (Math.abs(variancePct) > 50) varianceFlag = "error";
+   650→    else if (Math.abs(variancePct) > 20) varianceFlag = "warn";
+   651→    if (varianceFlag !== "none") {
+   652→      push(`> Variance ${variancePct > 0 ? "+" : ""}${variancePct}% vs prior period — ${varianceFlag.toUpperCase()}`, varianceFlag === "error" ? "error" : "warn");
+   653→    }
+   654→  }
+   655→
+   656→  push(`> Record complete ✓`, "ok");
+   657→
+   658→  return {
+   659→    hourly: grossR.hourly,
+   660→    basic: grossR.basic,
+   661→    overtime: grossR.overtime,
+   662→    gross: grossR.gross,
+   663→    taxableGross,
+   664→    niableGross,
+   665→    tax: payeR.tax,
+   666→    niEmployee: niR.employee,
+   667→    niEmployer: niR.employer,
+   668→    pensionEmployee: pensionR?.eeDeducted || 0,
+   669→    pensionEmployer: pensionR?.er || 0,
+   670→    pensionEeGross: pensionR?.eeGross || 0,
+   671→    studentLoan: slR.studentLoan,
+   672→    postgradLoan: slR.postgradLoan,
+   673→    net,
+   674→    employerCost,
+   675→    earningsAtLel: niR.earningsAtLel,
+   676→    earningsLelPt: niR.earningsLelToPt,
+   677→    earningsPtUel: niR.earningsPtToUel,
+   678→    variancePct,
+   679→    varianceFlag,
+   680→    log,
+   681→  };
+   682→}
+   683→
+   684→// ============ 5.10 PAY DATES / BACS ============
+   685→export function resolvePayDate(
+   686→  year: number,
+   687→  month: number,
+   688→  rule: string,
+   689→  fixedDay?: number,
+   690→  earlyPay = true,
+   691→  bankHolidays: Date[] = []
+   692→): Date {
+   693→  const isNonWorking = (d: Date) => {
+   694→    const day = d.getDay();
+   695→    if (day === 0 || day === 6) return true;
+   696→    return bankHolidays.some((bh) => bh.toDateString() === d.toDateString());
+   697→  };
+   698→
+   699→  if (rule === "monthly_last_working_day") {
+   700→    const lastDay = new Date(year, month, 0);
+   701→    let d = new Date(lastDay);
+   702→    while (isNonWorking(d)) {
+   703→      d.setDate(d.getDate() - 1);
+   704→    }
+   705→    return d;
+   706→  }
+   707→  if (rule === "fixed_date" && fixedDay) {
+   708→    const daysInMonth = new Date(year, month, 0).getDate();
+   709→    const day = Math.min(fixedDay, daysInMonth);
+   710→    let d = new Date(year, month - 1, day);
+   711→    if (isNonWorking(d)) {
+   712→      if (earlyPay) {
+   713→        while (isNonWorking(d)) d.setDate(d.getDate() - 1);
+   714→      } else {
+   715→        while (isNonWorking(d)) d.setDate(d.getDate() + 1);
+   716→      }
+   717→    }
+   718→    return d;
+   719→  }
+   720→  return new Date(year, month, 0);
+   721→}
+   722→
+   723→export function bacsSubmissionDate(payDate: Date, bankHolidays: Date[] = []): Date {
+   724→  const isNonWorking = (d: Date) => {
+   725→    const day = d.getDay();
+   726→    if (day === 0 || day === 6) return true;
+   727→    return bankHolidays.some((bh) => bh.toDateString() === d.toDateString());
+   728→  };
+   729→  let d = new Date(payDate);
+   730→  let count = 0;
+   731→  while (count < 2) {
+   732→    d.setDate(d.getDate() - 1);
+   733→    if (!isNonWorking(d)) count++;
+   734→  }
+   735→  return d;
+   736→}
+   737→
+   738→// ============ 5.11 VALIDATORS ============
+   739→export function validateNINO(nino: string): boolean {
+   740→  const cleaned = (nino || "").replace(/\s+/g, "").toUpperCase();
+   741→  return /^(?!BG|GB|NK|KN|NT|TN|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\d{6}[A-D]$/.test(cleaned);
+   742→}
+   743→
+   744→export function maskNINO(nino?: string | null): string {
+   745→  if (!nino) return "—";
+   746→  const cleaned = nino.replace(/\s+/g, "").toUpperCase();
+   747→  if (cleaned.length < 8) return cleaned;
+   748→  return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} •• •• ${cleaned.slice(7)}`;
+   749→}
+   750→
+   751→export function validatePAYERef(ref: string): boolean {
+   752→  return /^\d{3}\/[A-Z0-9]{1,10}$/.test((ref || "").toUpperCase());
+   753→}
+   754→
+   755→export function validateAORef(ref: string): boolean {
+   756→  return /^\d{3}P[A-Z]\d{7}[0-9X]$/.test((ref || "").toUpperCase());
+   757→}
+   758→
+   759→export function validateSortCode(sc: string): boolean {
+   760→  return /^\d{6}$/.test((sc || "").replace(/[-\s]/g, ""));
+   761→}
+   762→
+   763→export function validateAccount(acc: string): boolean {
+   764→  const digits = (acc || "").replace(/\s/g, "");
+   765→  return /^\d{6,8}$/.test(digits);
+   766→}
+   767→
+   768→// ============ WORKED PROOF VERIFICATION (§5.13) ============
+   769→export function verifyWorkedProof(): {
+   770→  passed: boolean;
+   771→  results: Record<string, { expected: number; actual: number; ok: boolean }>;
+   772→} {
+   773→  const r = calculateEmployee({
+   774→    salaryAnnual: 36000,
+   775→    contractedWeeklyHours: 37.5,
+   776→    taxCode: "1257L",
+   777→    niCategory: "A",
+   778→    studentLoanPlan: "plan_2",
+   779→    postgradLoan: false,
+   780→    pensionEnrolled: true,
+   781→    period: 1,
+   782→    overtimeHours: 0,
+   783→    overtimeMultiplier: 1.5,
+   784→    bonus: 0,
+   785→    commission: 0,
+   786→    statutoryPay: 0,
+   787→    adjustments: [],
+   788→    ytdTaxable: 0,
+   789→    ytdTaxPaid: 0,
+   790→    pensionBasis: "qualifying_earnings",
+   791→    pensionRelief: "relief_at_source",
+   792→    pensionEeRate: 0.05,
+   793→    pensionErRate: 0.03,
+   794→  });
+   795→
+   796→  const checks = {
+   797→    gross: { expected: 3000.0, actual: r.gross },
+   798→    tax: { expected: 390.2, actual: r.tax },
+   799→    niEmployee: { expected: 156.16, actual: r.niEmployee },
+   800→    niEmployer: { expected: 387.45, actual: r.niEmployer },
+   801→    pensionEmployee: { expected: 99.2, actual: r.pensionEmployee },
+   802→    pensionEmployer: { expected: 74.4, actual: r.pensionEmployer },
+   803→    studentLoan: { expected: 49.0, actual: r.studentLoan },
+   804→    net: { expected: 2305.44, actual: r.net },
+   805→    employerCost: { expected: 3461.85, actual: r.employerCost },
+   806→  };
+   807→
+   808→  const results: any = {};
+   809→  let passed = true;
+   810→  for (const [k, v] of Object.entries(checks)) {
+   811→    const ok = Math.abs(v.actual - v.expected) < 0.01;
+   812→    results[k] = { expected: v.expected, actual: v.actual, ok };
+   813→    if (!ok) passed = false;
+   814→  }
+   815→  return { passed, results };
+   816→}
+   817→

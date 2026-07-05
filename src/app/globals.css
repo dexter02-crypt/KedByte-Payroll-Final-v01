@@ -1,0 +1,202 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================
+   KEDBYTE PAYROLL — VOID DESIGN SYSTEM
+   Dark-only. 0px radius. No shadows. Hairline borders.
+   Inter (UI) + JetBrains Mono (numbers/refs) + Material Symbols
+   ============================================================ */
+
+@theme inline {
+  --color-background: var(--bg-void);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
+  --color-card: var(--bg-surface);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--bg-surface);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--accent-pearl);
+  --color-primary-foreground: var(--accent-ink);
+  --color-secondary: var(--surface-high);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--surface-high);
+  --color-muted-foreground: var(--text-secondary);
+  --color-accent: var(--surface-high);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--error);
+  --color-border: var(--border-subtle);
+  --color-input: var(--surface-low);
+  --color-ring: var(--accent-pearl);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  /* Void palette exposed as direct utilities */
+  --color-void: var(--bg-void);
+  --color-surface: var(--bg-surface);
+  --color-surface-low: var(--surface-low);
+  --color-surface-high: var(--surface-high);
+  --color-pearl: var(--accent-pearl);
+  --color-ink: var(--accent-ink);
+  --color-tprimary: var(--text-primary);
+  --color-tsecondary: var(--text-secondary);
+  --color-ttertiary: var(--text-tertiary);
+  /* Radius — 0px universally */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+:root {
+  --radius: 0px;
+  /* Void palette */
+  --bg-void: #0C0C0E;
+  --bg-surface: #141416;
+  --surface-low: #0f0e0e;
+  --surface-high: #201f1f;
+  --text-primary: #F5F5F5;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #52525B;
+  --accent-pearl: #E8E4E0;
+  --accent-ink: #0C0C0E;
+  --success: #4ADE80;
+  --warning: #FBBF24;
+  --error: #F87171;
+  --border-subtle: rgba(245, 245, 245, 0.06);
+  --border-pearl-dim: rgba(232, 228, 224, 0.2);
+  --font-inter: "Inter", system-ui, sans-serif;
+  --font-jetbrains: "JetBrains Mono", monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border-subtle);
+  }
+  html {
+    background-color: var(--bg-void);
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--bg-void);
+    color: var(--text-primary);
+    font-family: var(--font-inter);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Numbers, currency, refs, timestamps → mono */
+  .font-mono, .mono {
+    font-family: var(--font-jetbrains);
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@layer utilities {
+  /* Label caps — 11px uppercase tracked */
+  .label-caps {
+    font-size: 11px;
+    line-height: 14px;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .section-title {
+    font-size: 13px;
+    line-height: 16px;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .page-title {
+    font-size: 20px;
+    line-height: 28px;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+  .data-sm {
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 500;
+    font-family: var(--font-jetbrains);
+    font-feature-settings: "tnum" 1;
+  }
+  .data-lg {
+    font-size: 28px;
+    line-height: 32px;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+    font-family: var(--font-jetbrains);
+    font-feature-settings: "tnum" 1;
+  }
+  .border-subtle {
+    border-color: var(--border-subtle);
+  }
+  .border-pearl-dim {
+    border-color: var(--border-pearl-dim);
+  }
+  .text-tprimary { color: var(--text-primary); }
+  .text-tsecondary { color: var(--text-secondary); }
+  .text-ttertiary { color: var(--text-tertiary); }
+  .text-pearl { color: var(--accent-pearl); }
+  .text-success { color: var(--success); }
+  .text-warning { color: var(--warning); }
+  .text-error { color: var(--error); }
+  .bg-void { background-color: var(--bg-void); }
+  .bg-surface { background-color: var(--bg-surface); }
+  .bg-surface-low { background-color: var(--surface-low); }
+  .bg-surface-high { background-color: var(--surface-high); }
+  .bg-pearl { background-color: var(--accent-pearl); }
+  .hover-surface-high:hover { background-color: var(--surface-high); }
+
+  /* Material symbols base */
+  .material-symbols-outlined {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24;
+  }
+  .material-symbols-filled {
+    font-variation-settings: "FILL" 1, "wght" 300, "GRAD" 0, "opsz" 24;
+  }
+
+  /* Custom thin scrollbar */
+  .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scroll-thin::-webkit-scrollbar-track { background: transparent; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: rgba(245,245,245,0.08); border-radius: 0; }
+  .scroll-thin::-webkit-scrollbar-thumb:hover { background: rgba(245,245,245,0.16); }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Terminal log caret blink */
+  @keyframes caret-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  .caret-blink { animation: caret-blink 1s steps(1) infinite; }
+
+  /* Log line fade-in */
+  @keyframes log-in {
+    from { opacity: 0; transform: translateY(2px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .log-in { animation: log-in 0.15s ease-out; }
+
+  /* Status chip colors */
+  .chip-active { color: var(--success); border-color: rgba(74,222,128,0.3); }
+  .chip-pending { color: var(--warning); border-color: rgba(251,191,36,0.3); }
+  .chip-rejected { color: var(--error); border-color: rgba(248,113,113,0.3); }
+  .chip-suspended { color: var(--text-tertiary); border-color: rgba(82,82,91,0.3); }
+  .chip-approved { color: var(--success); border-color: rgba(74,222,128,0.3); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

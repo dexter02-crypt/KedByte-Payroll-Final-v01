@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kedbyte Payroll - Payslip Viewer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#b7b4b7",
+                        "secondary-container": "#474649",
+                        "on-primary": "#31302e",
+                        "on-secondary": "#313032",
+                        "surface-tint": "#c9c6c2",
+                        "on-tertiary-fixed": "#1d1b1d",
+                        "primary": "#ffffff",
+                        "on-surface-variant": "#cac6bd",
+                        "on-error": "#690005",
+                        "surface": "#141313",
+                        "tertiary-fixed": "#e7e1e3",
+                        "on-secondary-fixed-variant": "#474649",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-container-highest": "#363434",
+                        "surface-container-high": "#2b2a29",
+                        "on-background": "#e5e2e1",
+                        "secondary-fixed-dim": "#c8c6c8",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed-variant": "#484744",
+                        "tertiary-fixed-dim": "#cac5c7",
+                        "outline": "#939188",
+                        "surface-dim": "#141313",
+                        "inverse-on-surface": "#313030",
+                        "inverse-surface": "#e5e2e1",
+                        "primary-container": "#e6e2de",
+                        "secondary-fixed": "#e5e1e4",
+                        "secondary": "#c8c6c8",
+                        "on-surface": "#e5e2e1",
+                        "on-primary-container": "#666461",
+                        "outline-variant": "#484740",
+                        "surface-container-lowest": "#0f0e0e",
+                        "background": "#141313",
+                        "primary-fixed-dim": "#c9c6c2",
+                        "surface-container": "#201f1f",
+                        "inverse-primary": "#605e5b",
+                        "surface-variant": "#363434",
+                        "tertiary-container": "#e7e1e3",
+                        "surface-bright": "#3a3938",
+                        "on-secondary-fixed": "#1b1b1d",
+                        "on-tertiary-fixed-variant": "#494648",
+                        "on-primary-fixed": "#1c1b19",
+                        "error-container": "#93000a",
+                        "tertiary": "#ffffff",
+                        "primary-fixed": "#e6e2de",
+                        "on-tertiary-container": "#676365",
+                        "on-tertiary": "#323031",
+                        "void": "#0C0C0E",
+                        "pearl": "#E8E4E0",
+                        "border-subtle": "rgba(245, 245, 245, 0.06)",
+                        "border-divider": "rgba(245, 245, 245, 0.04)"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "container-gap": "64px",
+                        "section-gap": "32px",
+                        "row-height": "48px",
+                        "element-gap": "12px",
+                        "rail-width": "48px",
+                        "command-height": "44px"
+                    },
+                    "fontFamily": {
+                        "section-title": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "page-title": ["Inter"],
+                        "data-lg": ["JetBrains Mono"],
+                        "body-main": ["Inter"],
+                        "data-sm": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "section-title": ["13px", { "lineHeight": "16px", "letterSpacing": "0.06em", "fontWeight": "500" }],
+                        "label-caps": ["11px", { "lineHeight": "14px", "letterSpacing": "0.08em", "fontWeight": "600" }],
+                        "page-title": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "data-lg": ["28px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "body-main": ["15px", { "lineHeight": "24px", "letterSpacing": "0px", "fontWeight": "400" }],
+                        "data-sm": ["14px", { "lineHeight": "20px", "letterSpacing": "0px", "fontWeight": "500" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #0C0C0E; color: #E8E4E0; }
+        .void-border { border: 1px solid rgba(245, 245, 245, 0.06); }
+        .void-divider { border-bottom: 1px solid rgba(245, 245, 245, 0.04); }
+        .pearl-accent { border-left: 2px solid #E8E4E0; }
+        .pearl-btn { background-color: #E8E4E0; color: #0C0C0E; }
+        .pearl-btn-outline { border: 1px solid rgba(245, 245, 245, 0.06); background: transparent; color: #E8E4E0; }
+        .pearl-btn-text { color: #939188; background: transparent; }
+        .pearl-btn-text:hover { color: #E8E4E0; }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col items-center justify-center font-body-main text-body-main">
+<!-- Content Canvas -->
+<main class="w-full max-w-[800px] px-8 py-container-gap flex flex-col gap-section-gap">
+<!-- Header -->
+<header class="flex justify-between items-baseline mb-8">
+<h1 class="font-page-title text-page-title tracking-tight">Payslip Dec 2025</h1>
+<div class="flex gap-4">
+<button class="pearl-btn-text font-label-caps text-label-caps tracking-widest uppercase transition-colors px-4 py-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">print</span> Print
+                </button>
+<button class="pearl-btn-outline font-label-caps text-label-caps tracking-widest uppercase transition-colors px-6 py-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">share</span> Share
+                </button>
+<button class="pearl-btn font-label-caps text-label-caps tracking-widest uppercase px-6 py-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">download</span> Download PDF
+                </button>
+</div>
+</header>
+<!-- Document Container -->
+<div class="void-border p-12 flex flex-col gap-12 bg-[#141416]">
+<!-- Company & Employee Info -->
+<div class="flex justify-between items-start void-divider pb-8">
+<div>
+<h2 class="font-section-title text-section-title uppercase text-on-surface-variant mb-2">Employer</h2>
+<p class="font-data-lg text-data-lg font-bold">Smith & Co Ltd</p>
+<p class="text-on-surface-variant mt-2 text-sm">123 Corporate Square, London, EC1A 1BB</p>
+</div>
+<div class="text-right">
+<h2 class="font-section-title text-section-title uppercase text-on-surface-variant mb-2">Employee</h2>
+<p class="font-body-main text-body-main">Jane Doe</p>
+<div class="mt-4 grid grid-cols-2 gap-x-8 gap-y-2 text-sm text-right">
+<span class="text-on-surface-variant">NI Number:</span>
+<span class="font-data-sm text-data-sm">AB123456C</span>
+<span class="text-on-surface-variant">Tax Code:</span>
+<span class="font-data-sm text-data-sm">1257L</span>
+<span class="text-on-surface-variant">Pay Date:</span>
+<span class="font-data-sm text-data-sm">31 Dec 2025</span>
+</div>
+</div>
+</div>
+<!-- Financial Tables Grid -->
+<div class="grid grid-cols-2 gap-16">
+<!-- Payments -->
+<div>
+<h3 class="font-section-title text-section-title uppercase text-on-surface-variant mb-6 border-b border-transparent">Payments</h3>
+<div class="flex flex-col">
+<div class="flex justify-between items-center h-row-height void-divider">
+<span>Basic Pay</span>
+<span class="font-data-sm text-data-sm">£3,500.00</span>
+</div>
+<div class="flex justify-between items-center h-row-height void-divider">
+<span>Bonus</span>
+<span class="font-data-sm text-data-sm">£500.00</span>
+</div>
+<div class="flex justify-between items-center h-row-height void-divider">
+<span class="text-on-surface-variant">Total Gross Pay</span>
+<span class="font-data-sm text-data-sm">£4,000.00</span>
+</div>
+</div>
+</div>
+<!-- Deductions -->
+<div>
+<h3 class="font-section-title text-section-title uppercase text-on-surface-variant mb-6 border-b border-transparent">Deductions</h3>
+<div class="flex flex-col">
+<div class="flex justify-between items-center h-row-height void-divider">
+<span>PAYE Tax</span>
+<span class="font-data-sm text-data-sm">£642.10</span>
+</div>
+<div class="flex justify-between items-center h-row-height void-divider">
+<span>National Insurance</span>
+<span class="font-data-sm text-data-sm">£310.58</span>
+</div>
+<div class="flex justify-between items-center h-row-height void-divider">
+<span>Pension (5%)</span>
+<span class="font-data-sm text-data-sm">£200.00</span>
+</div>
+<div class="flex justify-between items-center h-row-height void-divider">
+<span class="text-on-surface-variant">Total Deductions</span>
+<span class="font-data-sm text-data-sm">£1,152.68</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Net Pay Wax Seal -->
+<div class="mt-8 pt-8 void-divider border-t-0 flex justify-end">
+<div class="pearl-accent pl-8 py-4">
+<p class="font-section-title text-section-title uppercase text-on-surface-variant mb-2">Net Pay</p>
+<p class="font-data-lg text-[48px] leading-[48px] tracking-tighter">£2,847.32</p>
+</div>
+</div>
+<!-- YTD Summary -->
+<div class="flex justify-between text-sm text-on-surface-variant pt-4">
+<div class="flex gap-8">
+<span><span class="uppercase font-label-caps text-label-caps mr-2">YTD Gross:</span> <span class="font-data-sm text-data-sm">£36,000.00</span></span>
+<span><span class="uppercase font-label-caps text-label-caps mr-2">YTD Tax:</span> <span class="font-data-sm text-data-sm">£5,778.90</span></span>
+</div>
+</div>
+</div>
+<!-- Previous Payslips -->
+<div class="mt-16">
+<button class="w-full flex items-center justify-between py-4 pearl-btn-text uppercase font-section-title text-section-title text-left group border-b border-transparent hover:void-divider transition-all">
+<span>Previous Payslips</span>
+<span class="material-symbols-outlined text-[20px] transition-transform group-hover:translate-y-1">expand_more</span>
+</button>
+<!-- Collapsed by default in this static view, implied interaction -->
+</div>
+</main>
+</body></html>

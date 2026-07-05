@@ -1,0 +1,1066 @@
+     1→# KEDBYTE PAYROLL — FINAL PRD + TRD + ENGINEERING RESEARCH
+     2→## Version 2.0 FINAL LOCK — 2026-07-05
+     3→## Tax Year: 2026/27 · Screens: 31 · Status: BUILD-READY
+     4→### This document supersedes all prior drafts. After this, the only remaining step is code.
+     5→
+     6→---
+     7→
+     8→# DOCUMENT MAP
+     9→
+    10→| Part | Contents |
+    11→|------|----------|
+    12→| 1 | Product Requirements (PRD): vision, users, roles, feature scope |
+    13→| 2 | Design System (extracted from the delivered UI) |
+    14→| 3 | Complete Routing Map (every URL in the product) |
+    15→| 4 | Database Schema (full DDL, production PostgreSQL) |
+    16→| 5 | Calculation Engine — every formula, every function signature, worked proofs |
+    17→| 6 | Per-Screen Functional Specification — all 31 screens: components, API calls, functions, state machines, real-time behaviour |
+    18→| 7 | Complete API Reference (every endpoint, request/response payloads) |
+    19→| 8 | HMRC RTI Integration (GovTalk envelope, IRmark algorithm, lifecycle, DPS) |
+    20→| 9 | Pension Integration (NEST web services, PAPDIS) |
+    21→| 10 | Jobs, Queues & Real-Time Architecture |
+    22→| 11 | Security: auth flows, RBAC matrix, encryption, audit hash-chain |
+    23→| 12 | Testing & Acceptance Criteria |
+    24→| 13 | Build Phases & Critical Path |
+    25→
+    26→---
+    27→
+    28→# PART 1 — PRODUCT REQUIREMENTS (PRD)
+    29→
+    30→## 1.1 Vision
+    31→Kedbyte Payroll is a multi-tenant UK payroll bureau platform: one bureau operates payroll for many client companies, each with many employees, with HMRC RTI compliance built in as a first-class workflow — not an export. Two surfaces: the **Bureau Command Center** (dark "Void" professional console) and the **Employee Self-Service Portal** ("My Pay"). Design promise: *the system is not perceived as fast; it is perceived as present.*
+    32→
+    33→## 1.2 Users & Roles
+    34→
+    35→| Role | Surface | Core jobs |
+    36→|------|---------|-----------|
+    37→| `bureau_admin` | Bureau | Everything across all client companies: onboarding, pay runs, RTI, pensions, settings |
+    38→| `company_admin` | Bureau (scoped) | Own company: employees, pay runs, approvals |
+    39→| `payroll_manager` | Bureau (scoped) | Assigned companies: run + review payroll, no settings |
+    40→| `employee` | ESS Portal | Payslips, P60s, holidays, personal details |
+    41→| `manager` (employee flag) | ESS Portal | + approve direct reports' leave |
+    42→| `accountant` | Bureau (read) | Financial reports, aggregates only |
+    43→
+    44→## 1.3 Feature Scope (v1)
+    45→1. Multi-company management with HMRC reference validation & bank modulus checking
+    46→2. Employee lifecycle: starter (A/B/C declarations, P45 intake) → active → leaver (P45 out via FPS)
+    47→3. 4-step Pay Run Wizard with server-side calculation engine (PAYE/NI/SL/pension/statutory), variance detection, approval, FPS generation
+    48→4. RTI: FPS + EPS submission via GovTalk Transaction Engine, poll lifecycle, error resolution engine, resubmission
+    49→5. Pension auto-enrolment: per-period assessment, opt-out + refund, NEST/PAPDIS contribution files
+    50→6. Payslip/P60/P45 generation (print-grade), document vault with hash verification
+    51→7. ESS: payslips, holiday requests + manager approval chain, personal details (24h bank-change cooling-off), documents, notifications
+    52→8. Reports: gross-to-net, P32-style employer summary, gender pay gap, pension contributions, variance
+    53→9. Pay schedule + bank holiday + BACS calendar engine (gov.uk sync)
+    54→10. Settings with **effective-dated statutory rate tables** (historical recalculation always deterministic)
+    55→11. Hash-chained immutable audit ledger on every mutation
+    56→12. Auth: Argon2id + TOTP MFA + rotating refresh tokens + account recovery
+    57→
+    58→Out of scope v1 (phase 2): CIS, attachment-of-earnings orders, apprenticeship levy reporting, multi-currency, Confirmation of Payee, payrolled benefits (P11D flows), Scottish/NI bank-holiday divisions beyond data model.
+    59→
+    60→---
+    61→
+    62→# PART 2 — DESIGN SYSTEM (extracted from delivered UI, authoritative)
+    63→
+    64→## 2.1 Tokens
+    65→
+    66→```css
+    67→:root {
+    68→  --bg-void:        #0C0C0E;   /* app background */
+    69→  --bg-surface:     #141416;   /* cards, inputs, tables, modals */
+    70→  --surface-low:    #0f0e0e;   /* recessed wells (terminal log) */
+    71→  --surface-high:   #201f1f;   /* hover rows, raised chips */
+    72→  --text-primary:   #F5F5F5;   /* headings, primary data */
+    73→  --text-secondary: #A1A1AA;   /* labels, metadata */
+    74→  --text-tertiary:  #52525B;   /* disabled, timestamps ONLY (fails AA for body) */
+    75→  --accent-pearl:   #E8E4E0;   /* primary buttons, active nav, focus rings */
+    76→  --accent-ink:     #0C0C0E;   /* text on pearl */
+    77→  --success:        #4ADE80;   --warning: #FBBF24;   --error: #F87171;
+    78→  --border-subtle:  rgba(245,245,245,0.06);  /* ALL borders/dividers, 1px */
+    79→}
+    80→```
+    81→- **Typography:** Inter (400/500/600/700) for UI; **JetBrains Mono** (500/700) for ALL numbers, currency, timestamps, references, NI numbers, terminal log. Page title 20px/600/-0.01em; section title 13px/600 uppercase tracking; body 14px; data cells 13px mono.
+    82→- **Icons:** Material Symbols Outlined (weight 300, optical 20/24).
+    83→- **Radius: 0px universally. Shadows: none.** Depth is expressed only by surface tone + hairline borders.
+    84→- **Motion:** 200ms ease-out enter / ease-in exit; modal 300ms cubic-bezier(0.32,0.72,0,1); calculation log lines stream in at 60–120ms intervals; `prefers-reduced-motion` collapses all to instant.
+    85→- **Layout grammar (from delivered screens):** left **icon rail 72px** (nav: dashboard · business · groups/badge · payments · account_balance · savings · analytics · settings), top **command bar 56px** (product mark, breadcrumb, search, notifications, avatar), content area with 24px gutters. ESS mobile uses bottom tab bar (Home · Pay · Team · Profile).
+    86→- **Signature element:** the Step-2 **Calculation Engine Log** — a live terminal (surface-low, mono, timestamped lines, blinking caret) that streams engine progress. This is the product's memorable moment; implement it with real engine events, not fake delays.
+    87→
+    88→## 2.2 Component inventory (all appear in the delivered HTML)
+    89→StatCard (label / mono value / delta chip) · DataTable (hairline rows, hover surface-high, sticky header) · StatusChip (ACTIVE green · PENDING amber · REJECTED red · SUSPENDED gray — 11px uppercase mono) · Stepper (4-node, check icons on complete) · TerminalLog · SidePanel payslip preview · Modal (centered, border-subtle, no scrim blur) · FilterBar (dropdown chips) · Wizard footer (ghost Back / pearl Continue) · Toast (bottom-right, border-left status color) · EmptyState (icon + one sentence + one action).
+    90→
+    91→---
+    92→
+    93→# PART 3 — COMPLETE ROUTING MAP
+    94→
+    95→```
+    96→PUBLIC
+    97→  /login                              S01 Bureau Login            [bureau_login_kedbyte_payroll]
+    98→  /portal/login                       S11 Employee Login          [login_employee_portal_kedbyte_payroll]
+    99→  /forgot-password                    S19a                        [forgot_password_kedbyte_payroll]
+   100→  /reset-password/[token]             S19b                        [create_new_password_kedbyte_payroll]
+   101→  /account-recovery                   S19c                        [account_recovery_kedbyte_payroll]
+   102→
+   103→BUREAU  (guard: role ∈ bureau_admin|company_admin|payroll_manager|accountant)
+   104→  /bureau/dashboard                   S02                         [dashboard_kedbyte_payroll_admin]
+   105→  /bureau/companies                   S03 list                    [company_management_kedbyte_payroll_admin]
+   106→  /bureau/companies/new               S03b Add Company modal-page [add_company_registration_kedbyte_payroll_admin]
+   107→  /bureau/companies/[id]              S03 detail (tabs: overview·employees·payruns·settings)
+   108→  /bureau/companies/[id]/employees    S04 list                    [employee_list_acme_corp_kedbyte_payroll_admin]
+   109→  /bureau/employees/new               S04b Add Employee           [add_employee_registration_kedbyte_payroll_admin]
+   110→  /bureau/employees/[id]              S04 detail (inline edit, pay history, docs)
+   111→  /bureau/payruns                     pay run index (per company)
+   112→  /bureau/payruns/[id]/input          S05.1                       [pay_run_wizard_step_1_payroll_input]
+   113→  /bureau/payruns/[id]/calculation    S05.2                       [pay_run_wizard_step_2_calculation]
+   114→  /bureau/payruns/[id]/review         S05.3                       [pay_run_wizard_step_3_review]
+   115→  /bureau/payruns/[id]/submission     S05.4                       [pay_run_wizard_step_4_submission]
+   116→  /bureau/payruns/[id]/payslips       S06 review & approval       [payslip_review_approval_kedbyte_payroll]
+   117→  /bureau/rti                         S07                         [rti_submission_dashboard_kedbyte_payroll]
+   118→  /bureau/rti/[id]                    submission detail + XML viewer
+   119→  /bureau/rti/errors                  S21                         [rti_error_code_mapping_resolution_engine]
+   120→  /bureau/pensions                    S08                         [pension_auto_enrolment_management]
+   121→  /bureau/reports                     S09                         [reports_analytics_kedbyte_payroll]
+   122→  /bureau/reports/builder             S09b (optional)             [advanced_analytics_custom_report_builder]
+   123→  /bureau/reports/gpg                 S23                         [gender_pay_gap_reporting_kedbyte_payroll]
+   124→  /bureau/documents                   S22a admin docs             [document_management_kedbyte_payroll_admin]
+   125→  /bureau/documents/p45/[employeeId]  S20b                        [p45_document_viewer_kedbyte_payroll_admin]
+   126→  /bureau/settings                    S10 (tabs: Company·Tax·Pension·Bank·Users·Security·Compliance·Notifications·System) [settings_configuration_kedbyte_payroll_admin]
+   127→  /bureau/settings/pay-schedule       S22b                        [pay_schedule_configuration_kedbyte_payroll]
+   128→  /bureau/settings/bank-holidays      S22c                        [bank_holiday_registry_kedbyte_payroll]
+   129→  /bureau/settings/holiday-rules      S22d                        [pro_rata_custom_holiday_settings]
+   130→  /bureau/notifications/pay-dates     S22e                        [pay_date_notifications_kedbyte_payroll_admin]
+   131→
+   132→ESS PORTAL  (guard: role = employee)
+   133→  /portal/dashboard                   S12                         [dashboard_my_pay_employee_portal_3]
+   134→  /portal/payslips                    S13 list                    [payslip_review_my_pay_employee_portal_1]
+   135→  /portal/payslips/[id]               S13 viewer (print stylesheet)
+   136→  /portal/holidays                    S14                         [holiday_management_my_pay_employee_portal_1]
+   137→  /portal/details                     S15                         [personal_details_my_pay_employee_portal_1]
+   138→  /portal/documents                   S16                         [document_hub_my_pay_employee_portal]
+   139→  /portal/documents/p60/[taxYear]     S20a                        [p60_document_viewer_my_pay_employee_portal]
+   140→  /portal/notifications               S17                         [notification_center_my_pay_employee_portal]
+   141→  /portal/approvals                   S18 (guard: is_manager)     [manager_leave_approvals_command_center]
+   142→
+   143→API  (all under /api — full contract in Part 7)
+   144→```
+   145→
+   146→Route guards: Next.js middleware reads the JWT access cookie → rejects to `/login` or `/portal/login` by audience; layout-level role checks per segment group `(bureau)` / `(portal)`.
+   147→
+   148→---
+   149→
+   150→# PART 4 — DATABASE SCHEMA (PostgreSQL, production DDL)
+   151→
+   152→Multi-tenancy: shared schema + `tenant_id` on every row + **RLS as backstop** + app-layer scoping. Under PgBouncer transaction pooling, tenant context MUST be set per-transaction: `SELECT set_config('app.current_tenant', $1, true)` (SET LOCAL semantics) at the start of every transaction — session-level SET leaks across pooled connections.
+   153→
+   154→```sql
+   155→-- ============ TENANCY & IDENTITY ============
+   156→CREATE TABLE bureaus (
+   157→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   158→  name VARCHAR(255) NOT NULL,
+   159→  status VARCHAR(20) NOT NULL DEFAULT 'active',
+   160→  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
+   161→);
+   162→
+   163→CREATE TABLE users (
+   164→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   165→  tenant_id UUID NOT NULL REFERENCES bureaus(id),
+   166→  company_id UUID,                          -- scoping for company_admin / employee
+   167→  employee_id UUID,                         -- ESS link
+   168→  email CITEXT NOT NULL UNIQUE,
+   169→  password_hash TEXT NOT NULL,              -- Argon2id m=64MB t=3 p=4
+   170→  role VARCHAR(30) NOT NULL CHECK (role IN
+   171→    ('bureau_admin','company_admin','payroll_manager','employee','accountant')),
+   172→  is_manager BOOLEAN NOT NULL DEFAULT false,
+   173→  mfa_secret TEXT, mfa_enabled BOOLEAN NOT NULL DEFAULT false,
+   174→  mfa_backup_codes JSONB,                   -- 10 × Argon2id hashes
+   175→  token_version INT NOT NULL DEFAULT 0,     -- bump to revoke all refresh tokens
+   176→  failed_logins INT NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ,
+   177→  last_login TIMESTAMPTZ, status VARCHAR(20) NOT NULL DEFAULT 'active',
+   178→  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now()
+   179→);
+   180→
+   181→CREATE TABLE refresh_tokens (               -- rotation with reuse detection
+   182→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   183→  user_id UUID NOT NULL REFERENCES users(id),
+   184→  family_id UUID NOT NULL,                  -- token family; reuse ⇒ revoke family
+   185→  token_hash TEXT NOT NULL,                 -- SHA-256 of opaque token
+   186→  expires_at TIMESTAMPTZ NOT NULL, rotated_at TIMESTAMPTZ, revoked BOOLEAN DEFAULT false,
+   187→  created_at TIMESTAMPTZ DEFAULT now()
+   188→);
+   189→
+   190→-- ============ COMPANIES & EMPLOYEES ============
+   191→CREATE TABLE companies (
+   192→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   193→  tenant_id UUID NOT NULL REFERENCES bureaus(id),
+   194→  name VARCHAR(255) NOT NULL,
+   195→  paye_ref VARCHAR(15) NOT NULL,            -- ^\d{3}/[A-Z0-9]{1,10}$
+   196→  accounts_office_ref VARCHAR(14) NOT NULL, -- ^\d{3}P[A-Z]\d{7}[0-9X]$
+   197→  address_json JSONB NOT NULL DEFAULT '{}',
+   198→  bank_account_enc BYTEA, sort_code_enc BYTEA, account_name VARCHAR(100),
+   199→  region VARCHAR(20) NOT NULL DEFAULT 'england_wales',
+   200→  pay_schedule VARCHAR(30) NOT NULL DEFAULT 'monthly_last_working_day',
+   201→  pay_date_day SMALLINT, bacs_sun CHAR(6),
+   202→  early_pay BOOLEAN NOT NULL DEFAULT true,
+   203→  small_employer BOOLEAN NOT NULL DEFAULT false,   -- SMP 109% recovery eligibility
+   204→  employment_allowance_claimed BOOLEAN NOT NULL DEFAULT false,
+   205→  status VARCHAR(20) NOT NULL DEFAULT 'active',
+   206→  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(),
+   207→  deleted_at TIMESTAMPTZ,
+   208→  UNIQUE (tenant_id, paye_ref)
+   209→);
+   210→
+   211→CREATE TABLE employees (
+   212→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   213→  tenant_id UUID NOT NULL, company_id UUID NOT NULL REFERENCES companies(id),
+   214→  payroll_id VARCHAR(35) NOT NULL,          -- RTI Payroll ID; UNIQUE per company
+   215→  first_name VARCHAR(100) NOT NULL, last_name VARCHAR(100) NOT NULL,
+   216→  email CITEXT, dob DATE NOT NULL, gender CHAR(1),
+   217→  nino_enc BYTEA, nino_hash TEXT,           -- HMAC-SHA256 for exact-match search
+   218→  address_json JSONB NOT NULL DEFAULT '{}',
+   219→  start_date DATE NOT NULL, leaving_date DATE,
+   220→  starter_declaration CHAR(1) CHECK (starter_declaration IN ('A','B','C')),
+   221→  p45_prev_pay NUMERIC(12,2), p45_prev_tax NUMERIC(12,2), p45_tax_code VARCHAR(10),
+   222→  salary_annual NUMERIC(12,2) NOT NULL,
+   223→  contracted_weekly_hours NUMERIC(4,1) NOT NULL DEFAULT 37.5,
+   224→  works_pattern JSONB NOT NULL DEFAULT '[true,true,true,true,true,false,false]',
+   225→  department VARCHAR(100), job_title VARCHAR(100),
+   226→  employment_type VARCHAR(20) NOT NULL DEFAULT 'full_time',
+   227→  tax_code VARCHAR(12) NOT NULL DEFAULT '1257L',
+   228→  tax_basis VARCHAR(6) NOT NULL DEFAULT 'cumul' CHECK (tax_basis IN ('cumul','w1m1')),
+   229→  ni_category CHAR(1) NOT NULL DEFAULT 'A',
+   230→  is_director BOOLEAN NOT NULL DEFAULT false, director_appointed DATE,
+   231→  student_loan_plan VARCHAR(15),            -- plan_1|plan_2|plan_4|plan_5|null
+   232→  postgrad_loan BOOLEAN NOT NULL DEFAULT false,
+   233→  bank_account_enc BYTEA, sort_code_enc BYTEA, account_name VARCHAR(100),
+   234→  pension_status VARCHAR(20) NOT NULL DEFAULT 'not_assessed',
+   235→  pension_enrolment_date DATE, pension_optout_date DATE,
+   236→  holiday_entitlement_days NUMERIC(4,1) NOT NULL DEFAULT 28,
+   237→  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+   238→  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(),
+   239→  deleted_at TIMESTAMPTZ,
+   240→  UNIQUE (company_id, payroll_id)
+   241→);
+   242→
+   243→CREATE TABLE pending_bank_changes (         -- 24h cooling-off (ESS fraud control)
+   244→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   245→  tenant_id UUID NOT NULL, employee_id UUID NOT NULL REFERENCES employees(id),
+   246→  sort_code_enc BYTEA NOT NULL, account_enc BYTEA NOT NULL, account_name VARCHAR(100),
+   247→  requested_by UUID NOT NULL, requested_at TIMESTAMPTZ DEFAULT now(),
+   248→  activates_at TIMESTAMPTZ NOT NULL,        -- requested_at + 24h
+   249→  status VARCHAR(12) NOT NULL DEFAULT 'pending'  -- pending|applied|cancelled
+   250→);
+   251→
+   252→-- ============ PAY RUNS ============
+   253→CREATE TABLE pay_runs (
+   254→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   255→  tenant_id UUID NOT NULL, company_id UUID NOT NULL REFERENCES companies(id),
+   256→  tax_year VARCHAR(7) NOT NULL,             -- '2026-27'
+   257→  tax_period SMALLINT NOT NULL,             -- 1–12 (month) — tax month runs 6th→5th
+   258→  period_start DATE NOT NULL, period_end DATE NOT NULL, pay_date DATE NOT NULL,
+   259→  bacs_submission_date DATE,
+   260→  status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN
+   261→    ('draft','calculating','calculated','review','approved','committed')),
+   262→  totals_json JSONB NOT NULL DEFAULT '{}',  -- gross/tax/niEE/niER/pensEE/pensER/net/employerCost
+   263→  idempotency_key UUID,                     -- finalisation exactly-once
+   264→  calculated_at TIMESTAMPTZ, approved_by UUID, approved_at TIMESTAMPTZ, committed_at TIMESTAMPTZ,
+   265→  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(),
+   266→  UNIQUE (company_id, tax_year, tax_period)
+   267→);
+   268→
+   269→CREATE TABLE pay_run_entries (
+   270→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   271→  tenant_id UUID NOT NULL, pay_run_id UUID NOT NULL REFERENCES pay_runs(id),
+   272→  employee_id UUID NOT NULL REFERENCES employees(id),
+   273→  -- inputs
+   274→  overtime_hours NUMERIC(6,2) DEFAULT 0, overtime_multiplier NUMERIC(3,2) DEFAULT 1.5,
+   275→  bonus NUMERIC(12,2) DEFAULT 0, commission NUMERIC(12,2) DEFAULT 0,
+   276→  statutory_pay NUMERIC(12,2) DEFAULT 0, statutory_type VARCHAR(10),
+   277→  adjustments_json JSONB DEFAULT '[]',
+   278→  -- engine outputs (all NUMERIC(12,2))
+   279→  gross NUMERIC(12,2), taxable_gross NUMERIC(12,2), niable_gross NUMERIC(12,2),
+   280→  tax NUMERIC(12,2), ni_employee NUMERIC(12,2), ni_employer NUMERIC(12,2),
+   281→  pension_employee NUMERIC(12,2), pension_employer NUMERIC(12,2),
+   282→  student_loan NUMERIC(12,2), postgrad_loan NUMERIC(12,2), net NUMERIC(12,2),
+   283→  earnings_at_lel NUMERIC(12,2), earnings_lel_pt NUMERIC(12,2), earnings_pt_uel NUMERIC(12,2),
+   284→  variance_pct NUMERIC(6,2), variance_flag VARCHAR(10) DEFAULT 'none',
+   285→  status VARCHAR(12) NOT NULL DEFAULT 'draft', -- draft|calculated|approved|rejected
+   286→  reject_reason TEXT,
+   287→  UNIQUE (pay_run_id, employee_id)
+   288→);
+   289→
+   290→CREATE TABLE ytd_figures (                   -- one row per employee per tax year (roll-forward)
+   291→  tenant_id UUID NOT NULL, employee_id UUID NOT NULL, tax_year VARCHAR(7) NOT NULL,
+   292→  taxable NUMERIC(12,2) DEFAULT 0, tax_paid NUMERIC(12,2) DEFAULT 0,
+   293→  niable NUMERIC(12,2) DEFAULT 0, ni_ee NUMERIC(12,2) DEFAULT 0, ni_er NUMERIC(12,2) DEFAULT 0,
+   294→  pension_ee NUMERIC(12,2) DEFAULT 0, pension_er NUMERIC(12,2) DEFAULT 0,
+   295→  student_loan NUMERIC(12,2) DEFAULT 0, postgrad_loan NUMERIC(12,2) DEFAULT 0,
+   296→  gross NUMERIC(12,2) DEFAULT 0, net NUMERIC(12,2) DEFAULT 0,
+   297→  last_period SMALLINT DEFAULT 0,
+   298→  PRIMARY KEY (employee_id, tax_year)
+   299→);
+   300→
+   301→-- ============ RTI ============
+   302→CREATE TABLE rti_submissions (
+   303→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   304→  tenant_id UUID NOT NULL, company_id UUID NOT NULL, pay_run_id UUID,
+   305→  type VARCHAR(4) NOT NULL CHECK (type IN ('FPS','EPS','NVR')),
+   306→  tax_year VARCHAR(7) NOT NULL, tax_period SMALLINT,
+   307→  xml_payload TEXT NOT NULL, irmark CHAR(24) NOT NULL,   -- base64 SHA-1 = 28 chars w/ padding? store TEXT
+   308→  correlation_id VARCHAR(40),
+   309→  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN
+   310→    ('pending','submitted','polling','accepted','rejected','error')),
+   311→  poll_after TIMESTAMPTZ, attempts INT DEFAULT 0,
+   312→  hmrc_response_xml TEXT, error_code VARCHAR(10), error_text TEXT,
+   313→  submitted_at TIMESTAMPTZ, resolved_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now()
+   314→);
+   315→
+   316→CREATE TABLE rti_error_dictionary (
+   317→  code VARCHAR(10) PRIMARY KEY, category VARCHAR(20), severity VARCHAR(10),
+   318→  hmrc_message TEXT, cause TEXT, resolution_screen VARCHAR(10),
+   319→  resolution_field VARCHAR(40), guided_steps JSONB, auto_retry BOOLEAN DEFAULT false
+   320→);
+   321→
+   322→CREATE TABLE dps_notices (                   -- incoming P6/P9/SL1/SL2/PGL1/PGL2
+   323→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   324→  tenant_id UUID NOT NULL, company_id UUID NOT NULL, employee_id UUID,
+   325→  type VARCHAR(6) NOT NULL, payload_json JSONB NOT NULL,
+   326→  high_water_mark BIGINT NOT NULL,           -- DPS paging cursor per type
+   327→  applied BOOLEAN DEFAULT false, applied_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now()
+   328→);
+   329→
+   330→-- ============ PENSIONS / HOLIDAYS / DOCS / AUDIT / CONFIG ============
+   331→CREATE TABLE pension_schemes (
+   332→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   333→  tenant_id UUID NOT NULL, company_id UUID NOT NULL REFERENCES companies(id),
+   334→  provider VARCHAR(30) NOT NULL,             -- NEST|Peoples|Smart|Aviva|Other
+   335→  scheme_ref VARCHAR(60),
+   336→  basis VARCHAR(30) NOT NULL DEFAULT 'qualifying_earnings',
+   337→  relief VARCHAR(20) NOT NULL DEFAULT 'relief_at_source',
+   338→  ee_rate NUMERIC(5,4) NOT NULL DEFAULT 0.05, er_rate NUMERIC(5,4) NOT NULL DEFAULT 0.03,
+   339→  status VARCHAR(20) DEFAULT 'active'
+   340→);
+   341→
+   342→CREATE TABLE ae_assessments (
+   343→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   344→  tenant_id UUID NOT NULL, employee_id UUID NOT NULL, assessed_on DATE NOT NULL,
+   345→  age SMALLINT, monthly_earnings NUMERIC(12,2),
+   346→  result VARCHAR(15) NOT NULL,               -- eligible|non_eligible|entitled
+   347→  action VARCHAR(20),                        -- enrolled|postponed|none
+   348→  postponement_end DATE
+   349→);
+   350→
+   351→CREATE TABLE holidays (
+   352→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   353→  tenant_id UUID NOT NULL, employee_id UUID NOT NULL REFERENCES employees(id),
+   354→  start_date DATE NOT NULL, end_date DATE NOT NULL, days NUMERIC(4,1) NOT NULL,
+   355→  reason VARCHAR(255),
+   356→  status VARCHAR(12) NOT NULL DEFAULT 'pending', -- pending|approved|rejected|cancelled
+   357→  approver_id UUID, decided_at TIMESTAMPTZ, decision_note TEXT,
+   358→  created_at TIMESTAMPTZ DEFAULT now()
+   359→);
+   360→
+   361→CREATE TABLE documents (
+   362→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   363→  tenant_id UUID NOT NULL, company_id UUID, employee_id UUID,
+   364→  type VARCHAR(12) NOT NULL,                 -- payslip|p60|p45|contract|other
+   365→  tax_year VARCHAR(7), pay_run_entry_id UUID,
+   366→  storage_key TEXT NOT NULL, sha256 CHAR(64) NOT NULL,
+   367→  superseded_by UUID, status VARCHAR(12) DEFAULT 'generated',
+   368→  generated_at TIMESTAMPTZ DEFAULT now()
+   369→);
+   370→
+   371→CREATE TABLE audit_log (                     -- append-only, hash-chained
+   372→  seq BIGSERIAL PRIMARY KEY,
+   373→  tenant_id UUID NOT NULL, actor_id UUID, action VARCHAR(60) NOT NULL,
+   374→  entity_type VARCHAR(40) NOT NULL, entity_id UUID,
+   375→  before_json JSONB, after_json JSONB, reason TEXT, ip INET,
+   376→  prev_hash CHAR(64) NOT NULL, curr_hash CHAR(64) NOT NULL,
+   377→  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   378→);
+   379→-- enforce append-only:
+   380→--   REVOKE UPDATE, DELETE ON audit_log FROM app_role;
+   381→--   trigger raising exception on UPDATE/DELETE as belt-and-braces.
+   382→
+   383→CREATE TABLE statutory_config (              -- effective-dated rate tables
+   384→  tax_year VARCHAR(7) NOT NULL, effective_from DATE NOT NULL,
+   385→  key VARCHAR(60) NOT NULL, value_json JSONB NOT NULL,
+   386→  source VARCHAR(120), PRIMARY KEY (tax_year, effective_from, key)
+   387→);
+   388→
+   389→CREATE TABLE bank_holidays (
+   390→  date DATE NOT NULL, region VARCHAR(20) NOT NULL, name VARCHAR(100),
+   391→  bacs_impact BOOLEAN DEFAULT true, PRIMARY KEY (date, region)
+   392→);
+   393→
+   394→CREATE TABLE notifications (
+   395→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   396→  tenant_id UUID NOT NULL, user_id UUID NOT NULL,
+   397→  type VARCHAR(40) NOT NULL, title VARCHAR(200) NOT NULL, body TEXT,
+   398→  action_url VARCHAR(300), read_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT now()
+   399→);
+   400→
+   401→CREATE TABLE jobs_outbox (                   -- transactional outbox → queue
+   402→  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+   403→  tenant_id UUID, queue VARCHAR(40) NOT NULL, payload_json JSONB NOT NULL,
+   404→  dispatched BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now()
+   405→);
+   406→
+   407→-- ============ INDEXES ============
+   408→CREATE INDEX ix_emp_company ON employees(company_id) WHERE deleted_at IS NULL;
+   409→CREATE INDEX ix_emp_nino ON employees(nino_hash);
+   410→CREATE INDEX ix_emp_name_trgm ON employees USING gin ((first_name||' '||last_name) gin_trgm_ops);
+   411→CREATE INDEX ix_payruns ON pay_runs(company_id, tax_year, tax_period DESC);
+   412→CREATE INDEX ix_entries ON pay_run_entries(pay_run_id);
+   413→CREATE INDEX ix_rti ON rti_submissions(tenant_id, status, poll_after);
+   414→CREATE INDEX ix_audit ON audit_log(tenant_id, created_at DESC);
+   415→CREATE INDEX ix_holidays_emp ON holidays(employee_id, start_date DESC);
+   416→CREATE INDEX ix_docs_emp ON documents(employee_id, type);
+   417→CREATE INDEX ix_notif ON notifications(user_id, read_at NULLS FIRST, created_at DESC);
+   418→
+   419→-- ============ RLS (backstop; app scoping is primary) ============
+   420→ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+   421→CREATE POLICY t_iso ON employees USING (tenant_id = current_setting('app.current_tenant')::uuid);
+   422→-- repeat per tenant-scoped table
+   423→```
+   424→
+   425→Encryption columns (`*_enc`): AES-256-GCM, 96-bit random nonce prepended, envelope-encrypted with a per-tenant data key wrapped by KMS master key. `nino_hash` = HMAC-SHA256(kms_search_key, NINO) for exact-match lookup without decryption.
+   426→
+   427→---
+   428→
+   429→# PART 5 — CALCULATION ENGINE: EVERY FORMULA, FUNCTION & PROOF
+   430→
+   431→The engine is a pure-function TypeScript module (`src/engine/`) with zero I/O — fully unit-testable. All statutory constants live in `config/taxYear2026.ts` keyed by tax year (never mutated; new year = new file + `statutory_config` rows).
+   432→
+   433→## 5.1 Statutory constants (2026/27, all verified)
+   434→
+   435→| Constant | Value | Constant | Value |
+   436→|---|---|---|---|
+   437→| Personal Allowance | £12,570 (frozen→2031) | NI LEL (monthly) | £559 (£129/wk) |
+   438→| Emergency code | 1257L | NI PT employee (monthly) | £1,048 |
+   439→| rUK basic 20% (taxable) | £0–£37,700 | NI ST employer (monthly) | £417 (£5,000/yr) |
+   440→| rUK higher 40% | £37,701–£112,570 | NI UEL/UST/AUST/VUST (monthly) | £4,189 |
+   441→| rUK additional 45% | >£112,570 | NI Freeport UST (monthly) | £2,083 |
+   442→| Scot starter 19% | total £12,571–£16,537 | Employee NI main / upper | 8% / 2% |
+   443→| Scot basic 20% | →£29,526 | Employee reduced (cat B) | 1.85% |
+   444→| Scot intermediate 21% | →£43,662 | Employer NI | 15%, no cap |
+   445→| Scot higher 42% | →£75,000 | Employment Allowance | £10,500 |
+   446→| Scot advanced 45% | →£125,140 | AE trigger | £10,000/yr (£833/mo) |
+   447→| Scot top 48% | above | AE QE band monthly | £520 – £4,189.17 |
+   448→| SL Plan 1 | £26,900 @9% | AE minimums | 8% total / 3% employer |
+   449→| SL Plan 2 | £29,385 @9% (frozen→2030) | NLW 21+ | £12.71 (1 Apr 2026) |
+   450→| SL Plan 4 | £33,795 @9% | NMW 18–20 / 16–17 / appr. | £10.85 / £8.00 / £8.00 |
+   451→| SL Plan 5 (FIRST LIVE YEAR) | £25,000 @9% | SSP | £123.25/wk OR 80% AWE if lower; DAY ONE |
+   452→| Postgraduate | £21,000 @6% | SMP | wks1–6: 90% AWE; wks7–39: min(£194.32, 90% AWE) |
+   453→| | | SMP recovery | 92% std / 109% small employer (≤£45k prior Class 1) |
+   454→
+   455→## 5.2 Money rounding rules (HMRC conventions — encode exactly)
+   456→
+   457→```
+   458→floorPound(v)  = ⌊v⌋            → taxable pay to date; student loan deduction
+   459→floorPenny(v)  = ⌊v·100⌋/100    → tax due to date (truncate)
+   460→niRound(v)     = nearest penny, exact half-penny rounds DOWN   → every NI product
+   461→round2(v)      = commercial 2dp → pension contributions, display sums
+   462→```
+   463→
+   464→## 5.3 Tax code parser — `parseTaxCode(input: string): ParsedTaxCode`
+   465→
+   466→```
+   467→Normalise: uppercase, collapse spaces.
+   468→W1/M1 detection: trailing " W1" | " M1" | "X"  → week1Month1=true, strip.
+   469→Regime: leading 'S' → scotland; leading 'C' → wales (rates mirror rUK today; keep flag).
+   470→Flat codes: BR 20% · D0 40% · D1 45% · SBR 20% · SD0 21% · SD1 42% · SD2 45% · SD3 48% · CBR/CD0/CD1.
+   471→NT → no tax.   0T → zero free pay, full progressive bands.
+   472→K-codes: K{n} → annualAdditionalPay = n×10+9  (ADDED to taxable).
+   473→Suffix codes: {n}[L|M|N|T] → annualFreePay = n×10+9   ← Table A convention: 1257L = £12,579, NOT £12,570.
+   474→Unknown → throw (surface as field validation).
+   475→```
+   476→
+   477→## 5.4 PAYE — `calculatePAYE({taxCode, period, grossTaxableThisPeriod, ytdTaxable, ytdTaxPaid}) → {tax, taxablePayToDate, freePayToDate, regulatoryLimited, code}`
+   478→
+   479→Cumulative method (default):
+   480→```
+   481→p            = tax month 1..12         (W1/M1 ⇒ p=1, YTD figures ignored)
+   482→grossToDate  = ytdTaxable + grossThis
+   483→freePayToDate= annualFreePay × p / 12                 (round2)
+   484→addlToDate   = annualAdditionalPay × p / 12           (K codes)
+   485→taxableToDate= floorPound(max(0, grossToDate − freePayToDate + addlToDate))
+   486→bands pro-rated: bandCeiling_toDate = annualCeiling × p/12
+   487→taxDueToDate = Σ slice×rate over pro-rated bands      (floorPenny)
+   488→tax          = taxDueToDate − ytdTaxPaid              (negative ⇒ REFUND through payroll)
+   489→REGULATORY LIMIT: tax ≤ 50% × grossTaxableThisPeriod  (K & 0T protection; excess carries fwd)
+   490→```
+   491→Flat codes: `taxDueToDate = floorPenny(floorPound(grossToDate) × flatRate)`.
+   492→Taxable gross definition: gross earnings − net-pay-arrangement pension − salary-sacrifice; **relief-at-source pension does NOT reduce taxable pay**.
+   493→
+   494→New-starter code assignment (no P45): Statement A → 1257L cumul · B → 1257L W1/M1 · C → BR · none → 0T W1/M1. With P45: use P45 code + prior pay/tax as opening YTD (unless code is BR/0T/D-prefix → don't carry pay/tax).
+   495→
+   496→## 5.5 National Insurance — `calculateNI(E, category) → {employee, employer, earningsAtLEL, earningsLELtoPT, earningsPTtoUEL}`
+   497→
+   498→Per-period, non-cumulative (except directors). NI-able gross = gross − salary-sacrifice (RAS and net-pay pension do NOT reduce NI-able).
+   499→```
+   500→EMPLOYEE:                                    EMPLOYER (15% above threshold):
+   501→A,H,M,V: 8%×(min(E,UEL)−PT)₊ + 2%×(E−UEL)₊   A,B,C,J: threshold = ST (£417)
+   502→B      : 1.85% main band + 2% upper           H,M,V,Z: threshold = UEL £4,189 (0% below — replaces ST)
+   503→J,Z    : 2% × (E−PT)₊  (deferment flat)       Freeport letters: threshold = £2,083
+   504→C,X    : 0                                    X: 0
+   505→Every product niRound()ed (nearest penny, half DOWN).
+   506→```
+   507→FPS band reporting (mandatory even when NI=0): earnings at LEL, LEL→PT, PT→UEL — sub-PT employees still earn State Pension qualifying years and MUST appear on FPS.
+   508→
+   509→Directors — `calculateDirectorNI(cumulativeEarnings, category, eePaidYTD, erPaidYTD, weeksAsDirector)`:
+   510→annual thresholds (PT £12,570 / UEL £50,270 / ST £5,000) pro-rated by weeks/52 for mid-year appointments; compute NI on cumulative earnings, subtract YTD paid. Alternative (table) method = normal monthly + mandatory annual true-up in final period.
+   511→
+   512→Employment Allowance: cumulative employer-NI offset up to £10,500/scheme/year, consumed run-by-run, claimed via EPS flag; never offsets Class 1A/1B.
+   513→
+   514→## 5.6 Student loans — `calculateStudentLoan(E, plan)` → `floorPound(max(0, E − threshold_m) × rate)`
+   515→
+   516→Monthly thresholds: P1 £2,241.67 · P2 £2,448.75 · P4 £2,816.25 · P5 £2,083.33 · PGL £1,750.00. One undergraduate plan max; **postgraduate runs CONCURRENTLY** (separate 6% deduction). Started by DPS SL1/PGL1, stopped by SL2/PGL2. Base = NI-able gross.
+   517→
+   518→## 5.7 Pensions — `calculatePension(E, scheme) → {pensionableEarnings, eeGross, eeDeducted, er, reducesTaxable, reducesNIable}`
+   519→
+   520→```
+   521→basis = qualifying_earnings: base = max(0, min(E, 4189.17) − 520)
+   522→        pensionable_full | total_earnings: base = E
+   523→eeGross = base × eeRate      er = base × erRate
+   524→relief branching:
+   525→  relief_at_source : eeDeducted = eeGross × 0.80  (provider reclaims 20%); taxable & NI-able unchanged
+   526→  net_pay          : eeDeducted = eeGross; reducesTaxable = eeGross      (NI-able unchanged)
+   527→  salary_sacrifice : eeDeducted = 0; er += eeGross; reduces BOTH taxable and NI-able
+   528→```
+   529→Assessment — `assessAutoEnrolment(age, monthlyEarnings, spa=67)`:
+   530→eligible (age 22–SPA AND earnings>£833/mo → AUTO-ENROL) · non_eligible (16–74 with earnings>trigger outside age band, or earnings in QE band → may opt in, employer must contribute) · entitled (16–74, ≤QEL → may join, no employer duty). SPA rises 66→67 between Apr 2026–Mar 2028 by DOB — implement `getStatePensionAge(dob)` from GOV.UK timetable, not a constant. Postponement ≤3 months. Opt-out window 1 month → full refund via negative deduction; re-enrolment every 3 years.
+   531→
+   532→## 5.8 Statutory pay
+   533→```
+   534→sspWeeklyRate(awe)               = min(123.25, 0.80×awe)         ← 2026/27 low-earner rule
+   535→sspForAbsence(awe, days, qdays)  = round2(rate/qdays × days)     ← day-one payable; 28-week max/PIW; PIWs link ≤56 days apart
+   536→smpForWeek(awe, w)               = w≤6 ? 0.90×awe : min(194.32, 0.90×awe)   (w 1..39)
+   537→smpEligible(awe, weeks)          = awe ≥ 129 AND weeks ≥ 26 (by Qualifying Week = EWC−15wks; AWE from 8wks up to QW)
+   538→Recovery via EPS: 92% or 109% (small employer). SSP not recoverable.
+   539→```
+   540→
+   541→## 5.9 Gross assembly & net
+   542→```
+   543→hourly    = salary / 52 / contracted_weekly_hours     (NEVER hardcode 37.5)
+   544→basic     = salary / 12                               (salaried: 1/12 regardless of month length)
+   545→overtime  = hours × hourly × multiplier (default 1.5)
+   546→gross     = basic + overtime + bonus + commission + statutory ± adjustments
+   547→pro-rata starter/leaver: basic × workingDaysEmployed / workingDaysInPeriod
+   548→NET = gross − tax − niEE − pensionDeducted − SL − PGL − attachments(v2)
+   549→EMPLOYER COST = gross + niER + pensionER
+   550→```
+   551→
+   552→## 5.10 Pay dates, BACS, holidays
+   553→```
+   554→resolvePayDate(y, m, rule, fixedDay, earlyPay):
+   555→  monthly_last_working_day → walk back from month-end over Sat/Sun/bank-holidays
+   556→  fixed_date               → min(day, daysInMonth); non-working ⇒ earlyPay? previous working day
+   557→bacsSubmissionDate(payDate) = 2 BACS processing days before payday (3-day cycle: submit D1 → process D2 → credit D3)
+   558→  BACS calendar = weekends + ENGLAND & WALES holidays ALWAYS (even Scottish employers)
+   559→holidayEntitlementDays(dpw) = min(28, 5.6 × dpw);  accrual starter = ceil(ent × months/12 × 2)/2
+   560→irregular hours accrual = 12.07% of hours worked;  leaver PILON day rate = salary/260 (divisor configurable)
+   561→Bank holiday source: nightly sync https://www.gov.uk/bank-holidays.json → bank_holidays table (3 divisions).
+   562→```
+   563→
+   564→## 5.11 Validators
+   565→```
+   566→NINO   : ^(?!BG|GB|NK|KN|NT|TN|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\d{6}[A-D]$   (strip spaces, uppercase)
+   567→PAYEref: ^\d{3}/[A-Z0-9]{1,10}$        AOref: ^\d{3}P[A-Z]\d{7}[0-9X]$
+   568→Sort   : 6 digits; Account: 8 digits (pad legacy).  Modulus: Vocalink valacdos.txt weights
+   569→         (MOD10 | MOD11 | DBLAL over 14 digits, exceptions 1–14, scsubtab substitutions; data updated ~2×/yr, admin-uploadable)
+   570→NMW    : (salary/52)/hours ≥ rate(age); warn on breach, BLOCK finalize without audited override; check POST-sacrifice pay
+   571→```
+   572→
+   573→## 5.12 Gender Pay Gap maths (snapshot 5 April, 250+ employees)
+   574→```
+   575→hourlyRate_i = (ordinary pay + allowances in snapshot period) / hours    — EXCLUDE overtime; exclude nil/reduced-pay leave
+   576→meanGap%   = (mean_M − mean_F)/mean_M × 100        medianGap% analogous
+   577→bonusGap   : same over 12 months of bonuses; bonusProportion per gender
+   578→quartiles  : rank ALL by hourly rate → 4 equal-count bands → %M/%F each (ties: preserve gender ratio)
+   579→Publication: NO public write API — generate six figures + CSV for manual GPG-service entry.
+   580→```
+   581→
+   582→## 5.13 WORKED PROOF — canonical validation vector (must pass in CI)
+   583→
+   584→£36,000/yr · monthly · month 1 · 1257L cumul · cat A · Plan 2 · AE 5%/3% QE basis · relief at source:
+   585→```
+   586→gross      = 3,000.00
+   587→tax        : freePay 12,579/12 = 1,048.25 → taxable ⌊1,951.75⌋ = 1,951 → ×20% = 390.20
+   588→NI ee      : (3,000 − 1,048) × 8%                                      = 156.16
+   589→NI er      : (3,000 −   417) × 15%                                     = 387.45
+   590→pension    : QE = min(3000, 4189.17) − 520 = 2,480
+   591→             eeGross 124.00 → deducted ×0.8                            =  99.20 ; er = 74.40
+   592→SL Plan 2  : ⌊(3,000 − 2,448.75) × 9%⌋ = ⌊49.61⌋                       =  49.00
+   593→NET        = 3,000 − 390.20 − 156.16 − 99.20 − 49                      = 2,305.44
+   594→EMPLOYER   = 3,000 + 387.45 + 74.40                                    = 3,461.85
+   595→```
+   596→Additional CI vectors (fixtures file): BR flat · SBR/SD0 Scottish · K475 with 50% cap trip · 0T W1M1 · NT · cat C pensioner · cat M under-21 (er NI = 0 below £4,189) · cat J deferment · Plan 5 · PGL concurrent · net-pay pension · salary sacrifice (NI-able reduced) · director annual method crossing PT in M7 · refund month (mid-year code increase) · leaver pro-rata. Cross-validate against HMRC Basic PAYE Tools + published 2026-27 HMRC test data before go-live.
+   597→
+   598→---
+   599→
+   600→# PART 6 — PER-SCREEN FUNCTIONAL SPECIFICATION (ALL 31)
+   601→
+   602→Format per screen: **Route · UI source · Reads · Writes/Actions · Functions invoked · State machine · Real-time · Errors/Edge**.
+   603→
+   604→### S01 Bureau Login — `/login` [bureau_login_kedbyte_payroll]
+   605→Centered 360px card: KEDBYTE mark, "Bureau Portal / Payroll professionals only", email, password (visibility toggle, zxcvbn strength meter labelled "Vault-grade"), conditional 6-digit TOTP field (auto-submit on 6th digit), pearl Sign In.
+   606→- **Calls:** `POST /api/auth/login` → `{mfaRequired,mfaToken}` | tokens; `POST /api/auth/mfa/verify`.
+   607→- **Functions:** `verifyArgon2id`, `verifyTOTP(secret, code, window=±1)`, `issueTokens(user)` (access 15m JWT + refresh 7d rotating family), Redis sliding-window rate limit (5/min/IP+email), lockout: `failed_logins≥5 ⇒ locked_until=now()+15m`.
+   608→- **State:** `empty → filling → validating → loading → mfa_pending → loading → success(redirect /bureau/dashboard) | error(toast, clear TOTP)`.
+   609→- **Edge:** locked account → 423 with remaining time; backup code path; audit `AUTH_LOGIN`/`AUTH_FAILED`.
+   610→
+   611→### S02 Bureau Dashboard — `/bureau/dashboard` [dashboard_kedbyte_payroll_admin]
+   612→Header "Bureau Dashboard / System overview and immediate actions" + quick actions (Run Payroll · Add Employee · Generate Report). Stat cards: Total Payroll This Month (£, mono, delta chip) · Active Employees · Next Pay Date (+days chip) · Pending RTI (overdue badge). Compliance Overview card (P60s issued x/y · P11Ds · Final FPS status · days-remaining countdown). Recent Activity ledger table (Time·Action·User·Status) + "View Ledger".
+   613→- **Reads:** `GET /api/dashboard/summary` (Redis-cached 45s, rebuilt by worker on `payrun:committed`/`rti:resolved` events) · `GET /api/activity?cursor=` (keyset on audit_log).
+   614→- **Functions:** `aggregateDashboard(tenantId)` = Σ committed pay_runs this tax month; `nextPayDate = min(resolvePayDate(...))` across active companies; `pendingRTI = count(rti_submissions status∈pending,polling,rejected)`, overdue = pay_date < today AND no accepted FPS; compliance from documents + rti tables.
+   615→- **Real-time:** WS room `tenant:{id}` events `payrun:committed`, `rti:status`, `employee:changed` → patch stat cards + prepend activity rows (no refetch).
+   616→- **Edge:** zero companies → EmptyState "Add a company to get started".
+   617→
+   618→### S03 Company Management — `/bureau/companies` [company_management_kedbyte_payroll_admin]
+   619→Table: Company (name + mono PAYE ref) · Employees · Next Pay Date · Status chip · edit/delete. FilterBar: search, Status dropdown, density toggle. "+ Add" → S03b.
+   620→- **Reads:** `GET /api/companies?search&status&cursor&sort` — keyset pagination `(name,id)`, pg_trgm search, per-company employee counts via lateral join; next pay date computed by `resolvePayDate`.
+   621→- **Writes:** `DELETE /api/companies/:id` (soft; blocked if uncommitted pay runs exist → 409).
+   622→- **Edge:** suspended companies excluded from batch operations; RLS scoping.
+   623→
+   624→### S03b Add Company — `/bureau/companies/new` [add_company_registration_kedbyte_payroll_admin]
+   625→Sections exactly as designed: Company Details (Name, Tax Reference, Accounts Office Ref, Registered Address) · Bank Details (Sort Code, Account Number, Account Name) · Payroll Configuration (Pay Schedule Monthly/Weekly/Bi-Weekly, Pension Provider NEST/Aviva/Smart, Base Currency).
+   626→- **Calls:** `POST /api/companies` (draft autosave `PUT /api/companies/draft` debounced 800ms).
+   627→- **Functions:** `validatePAYERef`, `validateAORef`, `validateSortCode`, `modulusCheck(sort, account)` (server-side, valacdos data), duplicate `UNIQUE(tenant_id,paye_ref)` → field error; on create: seed `pension_schemes` row + first `pay_runs` shell? no — schedule only; audit `COMPANY_CREATED`.
+   628→- **State:** `draft → validating → creating → created(redirect detail)`. Modulus fail = warning (allow override w/ reason, audited) — modulus pass ≠ account exists.
+   629→
+   630→### S04 Employee List — `/bureau/companies/[id]/employees` [employee_list_acme_corp...]
+   631→Breadcrumb "Employees › Acme Corp". Actions: Bulk Import (CSV) · Add Employee. Filters: Department · Status · Tax Code · Pension · More. Columns: Employee (name+EMP id) · Department · Salary (mono) · Tax Code · NI Number **masked `AB 12 •• •• C`** · Status · Pension chip (Enrolled/Opted Out) · Next Pay Date · edit/view.
+   632→- **Reads:** `GET /api/companies/:id/employees?filters&cursor` (virtualized client rows ≥200).
+   633→- **Writes:** inline `PATCH /api/employees/:id {field, value}` — **optimistic UI**: apply locally → server validates (`validateNINO`, NMW check via `nmwHourly`, tax code parse) → on 422 rollback with slide animation + field toast; every accepted change audited with before/after JSON. Salary edits: `effective_date` picker; NMW breach ⇒ warning chip, block silent save.
+   634→- **Bulk import:** `POST /api/employees/import` (multipart) → job `import:employees` → pipeline per row: header map → type coercion → NINO/format validation → dedupe (nino_hash, payroll_id) → NMW → insert valid rows, collect row-errors → WS progress `import:progress {done,total,errors[]}` → summary modal (accept-valid / download error CSV).
+   635→- **NI masking:** decrypt server-side, render masked; full value only on employee detail for `bureau_admin` with audit `NINO_VIEWED`.
+   636→
+   637→### S04b Add Employee — `/bureau/employees/new` [add_employee_registration...]
+   638→Fields exactly as designed: names, email, DOB, NI Number (live ✓/✗ icon), Start Date, Department, Job Title, Employment Type (FT/PT/Contract), Annual Salary, Pay Frequency, Tax Code, bank (Sort/Account with modulus ✓), Pension panel showing **live Auto-enrolment Status: "Eligible Jobholder"**. Buttons: Save as Draft · Activate.
+   639→- **Calls:** `POST /api/employees {status:'draft'|'active'}`.
+   640→- **Functions on submit:** `validateNINO` · `parseTaxCode` (starter logic: no P45 → statement A/B/C ⇒ 1257L / 1257L-W1M1 / BR; P45 present → carry code + prior pay/tax into `ytd_figures` opening) · `assessAutoEnrolment(ageAt(startDate), salary/12)` → write `ae_assessments` + set `pension_status`; eligible ⇒ enrolment date = start (or postponement) · `holidayEntitlementDays` from works_pattern · payroll_id generation `EMP-{seq}` · flag for next FPS as starter · audit `EMP_CREATED`.
+   641→- **Edge:** rehire → same payroll_id? NO — new payroll_id + FPS "Payroll ID changed" indicator OFF (new employment); NINO absent allowed (DOB+gender+address mandatory then); under-16 ⇒ NI cat X.
+   642→
+   643→### S05.1 Pay Run Input — `/bureau/payruns/[id]/input` [step_1_payroll_input]
+   644→Header: "Pay Run: PR-2026-07 · Step 1 of 4", PAY PERIOD chip, PAY DATE chip. Stepper Input→Calculation→Review→Submission. Grid: Employee · Base Salary(ro) · Hours · Overtime · Bonus · Commission · Adjustments(+) · Gross Pay (live) · Status.
+   645→- **Create:** `POST /api/payruns {companyId}` → server derives next `tax_period`, `period_start/end` (tax month 6th→5th? No — calendar period per schedule; tax_period from pay_date), `pay_date = resolvePayDate(...)`, `bacs_submission_date = bacsSubmissionDate(payDate)`; seeds entries for all active employees + leavers-with-final-pay.
+   646→- **Autosave:** `PUT /api/payruns/:id/entries` debounced 800ms `{entries:[{employeeId, overtimeHours, bonus, commission, adjustments[]}]}` — server recomputes provisional gross only (`basic + overtime×hourly×mult + additions`) and echoes; full engine NOT run here.
+   647→- **Guards:** run must be `draft`; concurrent editor lock via `updated_at` version header → 409 "reloaded newer draft".
+   648→- **Continue →** transitions to S05.2 and enqueues calc job.
+   649→
+   650→### S05.2 Calculation — `/bureau/payruns/[id]/calculation` [step_2_calculation]
+   651→THE signature screen. Left: **Calculation Engine Log** terminal (surface-low, mono, RUNNING badge) streaming timestamped lines: `> INITIALIZING PAY RUN ENGINE…`, `> LOADING TAX CODES AND THRESHOLDS… OK`, `> Processing record 7 of 124`. Right: Live Summary (Total Gross · Tax · NI · Net, mono) + progress bar %.
+   652→- **Trigger:** `POST /api/payruns/:id/calculate` → 202 `{jobId}`; status → `calculating`.
+   653→- **Worker job `payrun:calculate`:** load company, scheme, entries, `ytd_figures`; FOR EACH entry → `calculateEmployee({...})` (Part 5 orchestrator: gross → pension → taxable/NI-able → PAYE → NI (director branch) → SL/PGL → net) → persist entry outputs + FPS band figures → emit WS `calc:progress {i,total,employeeId,runningTotals}` every row (throttle 50ms) → variance: `variance_pct = (net − prevNet)/prevNet×100`, flag warn >±20%, error >±50% → write `totals_json`, status `calculated`, emit `calc:done`.
+   654→- **Real-time:** client subscribes `payrun:{id}`; log lines rendered from progress events (REAL engine events — never simulated); on `calc:done` auto-advance CTA.
+   655→- **Failure:** engine throw on one employee ⇒ entry status `error` with message (e.g. "Unrecognised tax code K47X"), job continues, `calc:done {errors:n}` → banner "3 records need attention" linking S05.3 filtered.
+   656→- **Idempotent:** recalculate allowed while status∈(calculated, review) — wipes outputs, reruns.
+   657→
+   658→### S05.3 Review — `/bureau/payruns/[id]/review` [step_3_review]
+   659→"Audit & Finalise". Table: Employee · Gross · Tax · NI · Pension · Net Pay · **Variance** (signed mono, amber/red per flag). Row click → payslip side panel.
+   660→- **Reads:** `GET /api/payruns/:id/entries?status=calculated` + variance join vs `tax_period−1`.
+   661→- **Writes:** `PUT /api/payruns/:id/entries/:eid/approve|reject {reason}` · `POST /api/payruns/:id/approve-all` (skips flagged unless `force:true` per-entry ack) · edit inputs ⇒ back-transition to draft for that entry + recalc single (`POST .../entries/:eid/recalculate` runs engine for one row synchronously — <50ms).
+   662→- **Gate:** Continue enabled when all entries approved|rejected; rejected entries excluded from FPS and carried to next run? NO — rejected = removed from this run with audited reason.
+   663→
+   664→### S05.4 Submission — `/bureau/payruns/[id]/submission` [step_4_submission]
+   665→Vertical timeline: DATA INGEST ✓ · CALCULATION ✓ · APPROVAL ✓ · SUBMISSION (active). Summary chips: TOTAL NET PAY · EMPLOYEES · PERIOD. Action cards: **RTI FPS** (submit→status) · **Pension Contributions** "Send to NEST" · **BACS File** download · **Payslip Distribution** · final "Pay run complete → View Reports / Return to Dashboard".
+   666→- **Finalize:** `POST /api/payruns/:id/finalize {idempotencyKey}` — SINGLE DB TRANSACTION: status→committed · roll `ytd_figures` forward (+= each entry) · leavers: stamp leaving_date for FPS · outbox rows: `rti:submit-fps`, `pdf:payslips`, `pension:contributions`, `bacs:generate`, `notify:payslips-ready`. Duplicate key ⇒ 200 replay of original result (exactly-once).
+   667→- **BACS:** `generateStandard18(entries, company)` — fixed-width UDL: VOL1/HDR labels, per-credit records (dest sort, dest account, TX 99, amount in PENCE, reference = payroll_id), contra debit record (TX 17), UHL processing-day header = `bacs_submission_date`; download link (SUN required for direct submission; most bureaus route via bank indirect).
+   668→- **Cards update live** from WS: `rti:status`, `pdf:progress`, `pension:status`.
+   669→
+   670→### S06 Payslip Review & Approval — `/bureau/payruns/[id]/payslips` [payslip_review_approval]
+   671→Left: employee list w/ checkboxes, Net Pay, status; "Approval Progress 35/47" meter; Approve/Reject Selected. Right: full payslip preview (company header, PAYE ref, employee, NI masked, tax code, Payments/Deductions tables, zoom 50/100/150%, pager "1 of 47").
+   672→- **Reads:** `GET /api/payruns/:id/payslips` · `GET /api/payslips/:entryId/preview` (HTML render of engine outputs — same template as PDF).
+   673→- **Writes:** `POST /api/payruns/:id/payslips/approve {entryIds[]}` / `reject {entryIds[], reason}` (batch, transactional, audited per entry).
+   674→- **PDF pipeline (post-finalize job `pdf:payslips`):** queued batch → render payslip HTML template → PDF (Puppeteer worker, concurrency = cores−1, ~2–3s each; demo build: print-stylesheet HTML) → S3 put → `documents` row {sha256, storage_key} → WS `pdf:progress {done,total}` → ESS notification per employee. Regeneration after correction: new document row, old marked `superseded_by`.
+   675→
+   676→### S07 RTI Submission Dashboard — `/bureau/rti` [rti_submission_dashboard]
+   677→Filters: Tax Year · Period · Company · Status · Type. Table: Period (2026 M04 mono) · Company · Type · FPS Status · EPS Status · Total Pay · Total Tax · Submitted At · **View XML**. Header action: Submit FPS (manual/late) — plus EPS composer (nil return, recovery amounts, Employment Allowance flag).
+   678→- **Reads:** `GET /api/rti?filters` · `GET /api/rti/:id` (detail: envelope, IRmark, correlation, response XML pretty-printed, timeline).
+   679→- **Writes:** `POST /api/rti/fps {payRunId}` · `POST /api/rti/eps {companyId, taxPeriod, fields}` · `POST /api/rti/:id/resubmit`.
+   680→- **Lifecycle (worker, Part 8):** `pending → submitted(correlationId) → polling(poll_after=now+interval, backoff ×2 cap 30m, attempts≤20) → accepted(delete-request sent) | rejected(parse GovTalkErrors → rti_errors → notify) | error(transport, retry 1m/5m/30m/2h/8h then dead-letter)`.
+   681→- **Real-time:** WS `rti:status {id, status}` patches rows; overdue banner: pay_date passed without accepted FPS ⇒ late-filing warning (HMRC penalties).
+   682→
+   683→### S21 RTI Error Resolution — `/bureau/rti/errors` [rti_error_code_mapping_resolution_engine]
+   684→Rejected submissions grouped by error; each: code, HMRC message, plain-English cause, **guided steps** (deep links: employee field / company settings / credentials), affected employees, Resubmit button.
+   685→- **Reads:** `GET /api/rti/errors` (join rti_submissions × rti_error_dictionary).
+   686→- **Seed dictionary:** 1046 auth (→ Settings▸HMRC creds) · 5001 ref mismatch · 6010/6020 schema (engineering alert) · 7801 AO/office mismatch · 7802 scheme ceased · 7806 not registered for year · RIM NINO invalid (→S04 field) · RIM DOB/gender · RIM duplicate payment ID. Import HMRC business-rules spreadsheet as seed data.
+   687→- **Resubmit:** regenerates XML from CURRENT data (corrected YTD), new IRmark, new submission row linked `supersedes_id`.
+   688→
+   689→### S08 Pension Auto-Enrolment — `/bureau/pensions` [pension_auto_enrolment_management]
+   690→Header stats: 47 eligible · 12 enrolled · 3 opted out · "Last assessment 04 Jul 2026 06:00". Filters: Company · Status · Assessment date · Show historical. Table: Employee (+DOB) · Age · Earnings(Ann) · Status chip (Eligible/Enrolled/Entitled/Opted Out) · Enrolment Date · Action. Buttons: Assess Now · Export Report.
+   691→- **Writes:** `POST /api/pensions/assess {companyId}` → job iterates employees → `assessAutoEnrolment` → status transitions (eligible+unenrolled ⇒ enrol: set enrolment_date, create comms task, include in next contribution file) → `ae_assessments` history rows. `POST /api/pensions/optout {employeeId, receivedDate}` → inside window? refund via negative deduction next run : cessation. `GET /api/pensions/contributions/export?format=papdis|nest-csv` (Part 9).
+   692→- **Scheduled:** assessment job runs with every pay-run calc + nightly for age-22 birthdays; re-enrolment sweep every 3y ±3m window.
+   693→
+   694→### S09 Reports — `/bureau/reports` [reports_analytics] (+ builder)
+   695→Report cards → parameterised runs: Gross-to-Net · Employer P32-style (tax+NI due per tax month = FPS totals − EPS recoveries − Employment Allowance) · Pension contributions · Variance · Cost by department. Small = synchronous `GET /api/reports/:type?params`; heavy = `POST /api/reports/:type/async` → job → S3 file → notification. Exports CSV/XLSX. Builder (S09b): saved report definitions JSON {columns, filters, groupBy} interpreted server-side — v1 optional.
+   696→
+   697→### S23 GPG — `/bureau/reports/gpg` [gender_pay_gap_reporting]
+   698→`GET /api/reports/gpg?companyId&snapshot=2026-04-05` → Part 5.12 maths → six figures + quartile chart + CSV export + "publication checklist" (manual GPG service entry — no API exists).
+   699→
+   700→### S10 Settings — `/bureau/settings` [settings_configuration_kedbyte_payroll_admin]
+   701→Tabs: Company · Tax · Pension · Bank · Users · Security · Compliance · Notifications · System. Tax tab (as designed): "Tax Year: 2026/27" selector, Thresholds table (Parameter · Value · Variance vs prior yr · Authority=HMRC) read from `statutory_config`; "Update from HMRC" = sync job stub; **Override threshold** = new effective-dated row (NEVER mutate; reason required; audited `CONFIG_OVERRIDE`). Users tab: invite, role assign, MFA reset (audited). Security: session list + revoke (bump token_version), password policy. HMRC credentials (Gateway SenderID/password) stored encrypted, per company.
+   702→
+   703→### S22b Pay Schedule — `/bureau/settings/pay-schedule` [pay_schedule_configuration]
+   704→Per company: rule (fixed_date | monthly_last_working_day | weekly | bi-weekly), day picker, early-pay toggle, BACS lead preview — live 12-month calendar preview via `resolvePayDate` + `bacsSubmissionDate` showing shifted dates with reason chips ("moved: bank holiday").
+   705→
+   706→### S22c Bank Holidays — `/bureau/settings/bank-holidays` [bank_holiday_registry]
+   707→Table by region/year from `bank_holidays`; Sync Now (`POST /api/bank-holidays/sync` → fetch gov.uk JSON, upsert, diff report); add custom closure (company-scoped, bacs_impact flag).
+   708→
+   709→### S22d Holiday Rules — `/bureau/settings/holiday-rules` [pro_rata_custom_holiday]
+   710→Config: entitlement basis, accrual method (annual grant | 12.07% accrual), rounding (half-day up), carry-over cap, PILON divisor (260/252/365), bank-holidays-included toggle. Feeds `holidayEntitlementDays`/`accruedHoliday`.
+   711→
+   712→### S22e Pay Date Notifications — `/bureau/notifications/pay-dates` [pay_date_notifications_admin]
+   713→Rules table: T−5 "input due", T−3 "BACS deadline" (=bacs_submission_date−0), T−0 "FPS due today", overdue escalation. Scheduler job `notify:paydates` hourly scans upcoming dates → notifications + email outbox.
+   714→
+   715→### S22a Documents Admin — `/bureau/documents` [document_management_admin] & S20b P45 — `/bureau/documents/p45/[employeeId]`
+   716→Vault table: type, employee, tax year, generated, SHA-256 (verify button re-hashes stored object), superseded chain. P45 viewer: Parts 1A/2/3 print layout from final `ytd_figures` at leaving; **P45 is NOT filed to HMRC** — leaver goes on FPS (leaving date + final YTD); PDF is for the employee. Retention: payroll docs 6y (3y statutory minimum); erasure requests → anonymise after retention, never hard-delete audit.
+   717→
+   718→### S11 ESS Login — `/portal/login` [login_employee_portal_kedbyte_payroll]
+   719→Same auth machinery, JWT `aud:'portal'`; company-branded variant supported (logo per company). First-login: invite token → set password → optional MFA.
+   720→
+   721→### S12 ESS Dashboard — `/portal/dashboard` [dashboard_my_pay_3]
+   722→Cards: Next Pay Date · latest Net Pay (blur-until-tap privacy) · YTD strip (gross/tax/NI/net from `ytd_figures`) · recent payslips · holiday balance (entitlement − approved − pending). `GET /api/ess/dashboard` single aggregate. Bottom tabs Home/Pay/Team/Profile.
+   723→
+   724→### S13 Payslips — `/portal/payslips[/[id]]` [payslip_review_my_pay_1]
+   725→List by tax year; viewer = same payslip template, print stylesheet (A4, B/W); `GET /api/ess/payslips/:id/download` → 5-min signed URL; view/download audited (`status: viewed`).
+   726→
+   727→### S14 Holidays — `/portal/holidays` [holiday_management_my_pay_1]
+   728→Balance ring + request form (date range → `days = businessDays(start,end,works_pattern) − bankHolidays(region)` live) + history. `POST /api/ess/holidays` → status pending → notify manager (WS + email). Overlap validation; negative-balance block (allow-to-negative config).
+   729→
+   730→### S18 Manager Approvals — `/portal/approvals` [manager_leave_approvals_command_center]
+   731→Guard `is_manager`. Pending queue (direct reports via `manager_id` — add column employees.manager_id) · Approve/Reject w/ note · team calendar clash indicator (overlapping approved leave in team). Writes `PUT /api/holidays/:id/approve|reject` → notify employee. Delegation: manager may set delegate_user_id + date range (v1.1).
+   732→
+   733→### S15 Personal Details — `/portal/details` [personal_details_my_pay_1]
+   734→Editable: address, phone, emergency contact (immediate). **Bank details: 24h cooling-off** — `PUT /api/ess/bank` writes `pending_bank_changes {activates_at: now+24h}` → immediate notification to employee (both old-email confirm) + bureau admin alert; scheduler job applies at activation; employee can cancel; admin can expedite (audited). Name/DOB/NINO changes: request-only → admin task (RTI-sensitive fields).
+   735→
+   736→### S16 Document Hub — `/portal/documents` [document_hub] & S20a P60 — `/portal/documents/p60/[taxYear]`
+   737→Category tabs (Payslips · P60 · P45 · Contracts). P60: generated by year-end job for everyone employed 5 April, issued by 31 May; viewer print-grade; signed URL downloads; hash shown for verification.
+   738→
+   739→### S17 Notifications — `/portal/notifications` [notification_center]
+   740→`GET /api/notifications?cursor` · mark read/all · types: payslip_ready, holiday_decision, bank_change, p60_ready, pay_date. WS push `user:{id}` room; unread badge in shell.
+   741→
+   742→### S19 Auth Recovery — `/forgot-password`, `/reset-password/[token]`, `/account-recovery`
+   743→Forgot: always 200 (no enumeration); token = 32B random base64url → Redis `reset:{token}=userId` TTL 3600 → plain-text email link. Reset: validate → Argon2id hash → `token_version++` (revoke all sessions) → confirm email. Recovery (MFA lost): backup code path OR identity escalation to bureau admin (manual reset, audited `MFA_RESET`).
+   744→
+   745→---
+   746→# PART 7 — COMPLETE API REFERENCE
+   747→
+   748→All endpoints JSON over HTTPS; auth via httpOnly access-token cookie; errors RFC-7807 style `{type, title, status, detail, fields?}`. Mutations require `Idempotency-Key` header where marked [IDEM]. Every mutation writes audit_log.
+   749→
+   750→## 7.1 Auth
+   751→| Method Path | Body → Response |
+   752→|---|---|
+   753→| POST /api/auth/login | {email,password} → {mfaRequired,mfaToken} \| set-cookies + {user} |
+   754→| POST /api/auth/mfa/verify | {mfaToken,code} → set-cookies + {user} |
+   755→| POST /api/auth/refresh | (cookie) → rotated cookies · reuse-detected ⇒ 401 + family revoked |
+   756→| POST /api/auth/logout | → clears cookies, revokes refresh |
+   757→| POST /api/auth/forgot-password | {email} → 200 always (no enumeration) |
+   758→| GET  /api/auth/reset/:token/validate | → {valid, email?} |
+   759→| POST /api/auth/reset | {token, newPassword} → 200; token_version++ revokes all sessions |
+   760→| POST /api/auth/mfa/setup · /verify-setup · /disable | TOTP provisioning (otpauth URL + QR), 10 backup codes |
+   761→
+   762→## 7.2 Core resources (representative payloads)
+   763→
+   764→```
+   765→GET /api/dashboard/summary →
+   766→{ totalPayrollMonth: 142350.00, deltaPct: 4.2, activeEmployees: 1247,
+   767→  nextPayDate: "2026-07-15", daysToPay: 4, pendingRti: 3, overdueRti: 1,
+   768→  compliance: { taxYear:"2025-26", p60s:{done:14,total:14}, p11ds:{done:0,total:14},
+   769→                finalFps:"pending", daysRemaining:3 } }
+   770→
+   771→POST /api/companies [IDEM]
+   772→{ name, payeRef:"123/AB456", aoRef:"123PA00012345", address:{line1,city,postcode},
+   773→  bank:{sortCode:"20-00-00", account:"12345678", name}, region:"england_wales",
+   774→  paySchedule:{rule:"monthly_last_working_day"|"fixed_date", day?:28, earlyPay:true},
+   775→  pension:{provider:"NEST", eeRate:0.05, erRate:0.03,
+   776→           relief:"relief_at_source", basis:"qualifying_earnings"} }
+   777→→ 201 {id,...} | 422 {fields:{payeRef:"Invalid format"}} | 409 duplicate PAYE ref
+   778→
+   779→POST /api/employees [IDEM]
+   780→{ companyId, firstName, lastName, email, dob, nino?, address,
+   781→  startDate, starterDeclaration?:"A"|"B"|"C",
+   782→  p45?:{prevPay, prevTax, taxCode},
+   783→  salaryAnnual, contractedWeeklyHours, worksPattern:[7 bool],
+   784→  department, jobTitle, employmentType, taxCode?, niCategory?,
+   785→  studentLoanPlan?:"plan_1"|"plan_2"|"plan_4"|"plan_5", postgradLoan?:bool,
+   786→  bank?:{sortCode,account,name}, status:"draft"|"active" }
+   787→→ 201 { id, payrollId:"EMP-00188", taxCode:"1257L", taxBasis:"cumul",
+   788→        aeAssessment:{result:"eligible", enrolmentDate:"2026-08-01"} }
+   789→
+   790→PATCH /api/employees/:id  {field, value, effectiveDate?, reason?} → 200 | 422 (optimistic-UI rollback)
+   791→POST  /api/employees/import  (multipart CSV) → 202 {jobId}
+   792→
+   793→POST /api/payruns [IDEM] {companyId} → 201
+   794→{ id, ref:"PR-2026-07", taxYear:"2026-27", taxPeriod:4,
+   795→  periodStart:"2026-07-01", periodEnd:"2026-07-31",
+   796→  payDate:"2026-07-31", bacsSubmissionDate:"2026-07-29",
+   797→  entries:[{id, employeeId, name, baseSalaryMonthly, ...inputs zeroed}] }
+   798→
+   799→PUT  /api/payruns/:id/entries  {entries:[{id, overtimeHours, bonus, commission,
+   800→       adjustments:[{label, amount, taxable:bool, niable:bool}]}]}  → provisional gross echo
+   801→POST /api/payruns/:id/calculate → 202 {jobId}
+   802→GET  /api/payruns/:id/entries?status= →
+   803→  [{ id, employee:{id,name,payrollId}, gross, tax, niEmployee, niEmployer,
+   804→     pensionEmployee, pensionEmployer, studentLoan, postgradLoan, net,
+   805→     variancePct, varianceFlag:"none"|"warn"|"error", status }]
+   806→PUT  /api/payruns/:id/entries/:eid/approve | /reject {reason}
+   807→POST /api/payruns/:id/entries/:eid/recalculate      (single-row synchronous engine, <50ms)
+   808→POST /api/payruns/:id/approve-all {force?:[entryIds acknowledging variance flags]}
+   809→POST /api/payruns/:id/finalize [IDEM] → 200 {status:"committed", jobs:{fps,payslips,pension,bacs}}
+   810→GET  /api/payruns/:id/bacs → text/plain Standard-18 file
+   811→
+   812→POST /api/rti/fps {payRunId} → 202 {submissionId}
+   813→POST /api/rti/eps {companyId, taxYear, taxPeriod, noPayment?:bool,
+   814→                   smpRecovered?, nicCompensation?, employmentAllowance?:bool} → 202
+   815→GET  /api/rti?taxYear&period&companyId&status&type&cursor → rows for S07 table
+   816→GET  /api/rti/:id → {xml, irmark, correlationId, timeline:[{at,event}], responseXml?, errors:[...]}
+   817→POST /api/rti/:id/resubmit [IDEM] → 202 {newSubmissionId, supersedes}
+   818→
+   819→POST /api/pensions/assess {companyId} → 202 {jobId}
+   820→POST /api/pensions/optout {employeeId, receivedDate} → {mode:"refund"|"cessation"}
+   821→GET  /api/pensions/contributions/export?payRunId&format=papdis|nest-csv → file
+   822→
+   823→GET  /api/reports/:type?params → data     POST /api/reports/:type/async → 202 {jobId}
+   824→GET  /api/reports/gpg?companyId&snapshot → {meanGap, medianGap, bonusMeanGap,
+   825→     bonusMedianGap, bonusProportionM, bonusProportionF, quartiles:[4×{m,f}]}
+   826→
+   827→ESS:  GET /api/ess/dashboard · GET /api/ess/payslips[/:id/download → 5-min signed URL] ·
+   828→      POST /api/ess/holidays {startDate,endDate,reason} → {days, status:"pending"} ·
+   829→      PUT /api/holidays/:id/approve|reject {note} ·
+   830→      PUT /api/ess/bank {sortCode,account,name} → {activatesAt: now+24h} ·
+   831→      GET/PUT /api/ess/details · GET /api/notifications?cursor · PUT /api/notifications/:id/read
+   832→
+   833→Settings: GET/PUT /api/settings/:section ·
+   834→      POST /api/settings/tax/override {taxYear, key, value, reason} → new effective-dated row ·
+   835→      POST /api/bank-holidays/sync · GET/PUT /api/settings/hmrc-credentials (encrypted at rest)
+   836→Audit: GET /api/audit?entity&cursor · GET /api/audit/verify?from&to → chain-integrity report
+   837→```
+   838→
+   839→## 7.3 WebSocket events (Socket.io; rooms authorized from JWT at handshake)
+   840→```
+   841→room tenant:{id} : payrun:committed · rti:status {id,status,errorCode?} · employee:changed
+   842→room payrun:{id} : calc:progress {i,total,employeeId,runningTotals} · calc:done {errors} · pdf:progress
+   843→room user:{id}   : notification:new {...}
+   844→Handshake: cookie JWT verified → join only permitted rooms; tenant mismatch ⇒ disconnect.
+   845→```
+   846→
+   847→---
+   848→
+   849→# PART 8 — HMRC RTI INTEGRATION (implementation-exact)
+   850→
+   851→## 8.1 Endpoints & credentials
+   852→```
+   853→LIVE submit/poll : https://transaction-engine.tax.service.gov.uk/submission | /poll
+   854→TEST (ETS/TPVS)  : https://test-transaction-engine.tax.service.gov.uk/submission | /poll
+   855→Credentials      : Government Gateway SenderID + password per PAYE scheme (encrypted at rest)
+   856→Vendor ID        : issued on HMRC software-developer registration → ChannelRouting/Channel/URI
+   857→Recognition path : LTS offline validation → TPVS/ETS round-trip → submit test-scenario outputs
+   858→                   to SDSTeam@hmrc.gov.uk → recognition listing. HMRC target ≈6 weeks after
+   859→                   your testing completes. THE CRITICAL PATH — start Phase 0.
+   860→```
+   861→
+   862→## 8.2 GovTalk FPS envelope (2026-27 namespace `.../FullPaymentSubmission/26-27/1`)
+   863→```xml
+   864→<GovTalkMessage xmlns="http://www.govtalk.gov.uk/CM/envelope">
+   865→ <EnvelopeVersion>2.0</EnvelopeVersion>
+   866→ <Header>
+   867→  <MessageDetails>
+   868→   <Class>HMRC-PAYE-RTI-FPS</Class>
+   869→   <Qualifier>request</Qualifier>        <!-- lifecycle: request→acknowledgement→poll→response→delete -->
+   870→   <Function>submit</Function>
+   871→   <CorrelationID/>                      <!-- empty on submit; echoed in acknowledgement -->
+   872→   <Transformation>XML</Transformation>
+   873→   <GatewayTest>0</GatewayTest>          <!-- 1 = Test-in-Live -->
+   874→  </MessageDetails>
+   875→  <SenderDetails><IDAuthentication>
+   876→   <SenderID>{gatewayUser}</SenderID>
+   877→   <Authentication><Method>clear</Method><Role>principal</Role>
+   878→     <Value>{gatewayPassword}</Value></Authentication>
+   879→  </IDAuthentication></SenderDetails>
+   880→ </Header>
+   881→ <GovTalkDetails>
+   882→  <Keys><Key Type="TaxOfficeNumber">123</Key>
+   883→        <Key Type="TaxOfficeReference">AB456</Key></Keys>
+   884→  <TargetDetails><Organisation>IR</Organisation></TargetDetails>
+   885→  <ChannelRouting><Channel><URI>{vendorId}</URI>
+   886→    <Product>Kedbyte Payroll</Product><Version>1.0</Version></Channel></ChannelRouting>
+   887→ </GovTalkDetails>
+   888→ <Body>
+   889→  <IRenvelope xmlns="http://www.govtalk.gov.uk/taxation/PAYE/RTI/FullPaymentSubmission/26-27/1">
+   890→   <IRheader>
+   891→    <Keys><Key Type="TaxOfficeNumber">123</Key>
+   892→          <Key Type="TaxOfficeReference">AB456</Key></Keys>  <!-- MUST match GovTalkDetails/Keys -->
+   893→    <PeriodEnd>2026-08-05</PeriodEnd>
+   894→    <IRmark Type="generic">{IRMARK}</IRmark>
+   895→    <Sender>Bureau</Sender>
+   896→   </IRheader>
+   897→   <FullPaymentSubmission>
+   898→    <EmpRefs><OfficeNo>123</OfficeNo><PayeRef>AB456</PayeRef>
+   899→      <AORef>123PA00012345</AORef></EmpRefs>
+   900→    <RelatedTaxYear>26-27</RelatedTaxYear>
+   901→    <Employee>                                   <!-- repeats per pay_run_entry -->
+   902→     <EmployeeDetails>
+   903→      <NINO>AB123456C</NINO>
+   904→      <Name><Fore>Eleanor</Fore><Sur>Vance</Sur></Name>
+   905→      <Address>...</Address><BirthDate>1985-05-14</BirthDate><Gender>F</Gender>
+   906→     </EmployeeDetails>
+   907→     <Employment>
+   908→      <PayId>EMP-00142</PayId>
+   909→      <Starter>StartDate + declaration A/B/C</Starter>   <!-- new starters only -->
+   910→      <LeavingDate>...</LeavingDate>                     <!-- leavers; replaces P45 filing -->
+   911→      <FiguresToDate><TaxablePay/><TotalTax/><StudentLoansTD/>
+   912→        <PostgradLoansTD/><EmpeePenContribnsPaidTD/>...</FiguresToDate>
+   913→      <Payment>
+   914→       <PayFreq>M1</PayFreq><PmtDate>2026-07-31</PmtDate>
+   915→       <MonthNo>4</MonthNo><PeriodsCovered>1</PeriodsCovered>
+   916→       <HoursWorked>D</HoursWorked>              <!-- A:<16h B:16–23.99 C:24–29.99 D:30+ E:other -->
+   917→       <TaxCode>1257L</TaxCode>
+   918→       <TaxablePay>3000.00</TaxablePay>
+   919→       <TaxDeductedOrRefunded>390.20</TaxDeductedOrRefunded>
+   920→       <StudentLoanRecovered PlanType="02">49.00</StudentLoanRecovered>
+   921→                              <!-- 2026-27: PlanType 05 supported; 05 is DEFAULT when unknown -->
+   922→       <PostgradLoanRecovered>...</PostgradLoanRecovered>
+   923→      </Payment>
+   924→      <NIlettersAndValues>
+   925→       <NIletter>A</NIletter>
+   926→       <GrossEarningsForNICsInPd>3000.00</GrossEarningsForNICsInPd>
+   927→       <AtLELYTD/><LELtoPTYTD/><PTtoUELYTD/>     <!-- band figures MANDATORY even when NI = 0 -->
+   928→       <TotalEmpNICInPd>387.45</TotalEmpNICInPd>          <!-- employER -->
+   929→       <EmpeeContribnsInPd>156.16</EmpeeContribnsInPd>    <!-- employEE -->
+   930→      </NIlettersAndValues>
+   931→     </Employment>
+   932→    </Employee>
+   933→   </FullPaymentSubmission>
+   934→  </IRenvelope>
+   935→ </Body>
+   936→</GovTalkMessage>
+   937→```
+   938→**2026-27 schema deltas:** Student Loan **Plan 5** (data item 192, default when plan unknown) · NI **SPBP** items 221 (recovered YTD) / 222 (NIC compensation YTD) / 223 (SPBP YTD) + item 225 NI workplace postcode · EPS de-minimis state-aid items REMOVED · Small Employers Relief compensation 9%. Bind exact element names from the official 2026-27 RTI Data Item Guide before coding schema classes.
+   939→
+   940→## 8.3 IRmark — `computeIRmark(bodyXml: string): { base64: string; base32: string }`
+   941→```
+   942→1. Extract the <Body> element; the GovTalk envelope namespace must be INHERITED onto it
+   943→   (missing/stray namespaces on Body = the classic IRmark-invalid rejection).
+   944→2. Blank the IRmark element's text content (element remains).
+   945→3. Canonicalise with standard W3C XML C14N 1.0 (without comments).
+   946→4. digest = SHA-1(canonical bytes) → 20 raw bytes.
+   947→5. Embedded IRmark = base64(digest) [28 chars]; user-visible receipt form = base32(digest).
+   948→HMRC's own step-by-step guide: do NOT hand-roll C14N — use a proven library (xml-crypto, libxml).
+   949→Demo build: we emit deterministic canonical-form XML so base64(sha1(body)) is exact;
+   950→production swaps in library C14N behind the same function signature.
+   951→```
+   952→
+   953→## 8.4 Submission worker state machine (queues `rti:submit`, `rti:poll`)
+   954→```
+   955→submit : build XML → IRmark → POST /submission
+   956→   ← acknowledgement {CorrelationID, ResponseEndPoint{PollInterval}}
+   957→   persist correlation_id · status=polling · poll_after = now + PollInterval
+   958→poll   : POST /poll {Class, Qualifier:"poll", Function:"submit", CorrelationID}
+   959→   ← acknowledgement (still processing) ⇒ backoff ×1.5, cap 30 min, attempts ≤ 20
+   960→   ← response ⇒ business ACCEPTED → send delete-request → status=accepted → WS + notify
+   961→   ← error    ⇒ parse GovTalkErrors[] → rti_errors rows → status=rejected → S21 workflow
+   962→transport failure ⇒ retry 1m/5m/30m/2h/8h → dead-letter + ops alert
+   963→HMRC auto-deletes correlations after 60 days — treat missing correlation on poll as expired.
+   964→```
+   965→
+   966→## 8.5 DPS incoming-notices worker (`dps:fetch`, nightly 05:00 + on-demand)
+   967→```
+   968→DPSrequestToken  (WS-Security UsernameToken over HTTPS; token TTL 4 h)
+   969→for type in [P6, P9, SL1, SL2, PGL1, PGL2, AR, NOT]:
+   970→    DPSretrieve(type, highWaterMark)   — ≈1,500 notices/call cap
+   971→    upsert dps_notices · advance the stored high_water_mark (the ONLY cursor state)
+   972→apply job:
+   973→  P6/P9  → update employee tax_code (+ basis + effective date) · audit CODE_NOTICE_APPLIED · notify
+   974→  SL1/PGL1 → start loan (plan from notice; unknown plan ⇒ Plan 5 default in 2026-27)
+   975→  SL2/PGL2 → stop loan
+   976→  unmatched NINO ⇒ exceptions queue surfaced on S21.
+   977→```
+   978→
+   979→---
+   980→
+   981→# PART 9 — PENSION INTEGRATION
+   982→
+   983→## 9.1 NEST web services (async, idempotent)
+   984→Sequence per committed pay run: **Enrol Workers** (new eligibles; 30-day idempotency window keyed on payload digest — byte-identical resubmits dedupe, so serialize deterministically) → **Update Contributions** (per schedule row: NINO, pensionable earnings, ee/er amounts; 15-minute idempotency window) → **Approve for Payment** (same-calendar-day idempotency). TLS + per-employer NEST credentials on every call; processing is asynchronous — poll retrieval endpoints; workers appear on contribution schedules ≈1 h after processing. Employer direct debit must be active before approval succeeds — surface as a pre-flight check on the S05.4 card.
+   985→
+   986→## 9.2 PAPDIS export (provider-agnostic fallback)
+   987→CSV per PAPDIS 1.1 — one row per employee-period: EmployerId · PayPeriodStart/End · PayrollFrequency · NINO · Forename · Surname · DOB · Gender · PensionableEarnings · EmployeeContribution · EmployerContribution · AEStatus · EnrolmentDate · OptOutDate. Generated from committed pay_run_entries; downloadable from S05.4 card and S08 export. Covers People's Pension, Smart Pension, Aviva, Standard Life imports.
+   988→
+   989→---
+   990→
+   991→# PART 10 — JOBS, QUEUES, REAL-TIME
+   992→
+   993→```
+   994→Queues (BullMQ/Redis in production; demo build = in-process async runner behind the same interface):
+   995→  payrun:calculate      concurrency 2/tenant · emits progress events per record
+   996→  rti:submit, rti:poll  poll scheduled by poll_after
+   997→  pdf:payslips          concurrency = cores − 1 (Puppeteer)
+   998→  pension:assess, pension:contributions
+   999→  import:employees
+  1000→  notify:paydates       hourly cron          bank-holidays:sync  nightly 03:00
+  1001→  dps:fetch             nightly 05:00        bank-changes:apply  every 10 min (24 h cooling-off)
+  1002→  yearend:p60           triggered 6 April
+  1003→
+  1004→Transactional outbox: finalize writes jobs_outbox rows in the SAME transaction as status=committed;
+  1005→a dispatcher relays outbox → queues (at-least-once; every handler idempotent by natural key).
+  1006→Dead-letter queue per queue + ops notification on entry.
+  1007→
+  1008→Real-time: Socket.io hosted on the worker process (Redis adapter for multi-instance);
+  1009→SSE fallback for calc progress. NEVER simulate progress — the terminal log renders real engine events.
+  1010→```
+  1011→
+  1012→---
+  1013→
+  1014→# PART 11 — SECURITY
+  1015→
+  1016→## 11.1 RBAC matrix (middleware + per-query scoping; RLS backstop)
+  1017→| Capability | bureau_admin | company_admin | payroll_mgr | accountant | employee |
+  1018→|---|---|---|---|---|---|
+  1019→| Companies CRUD | ALL | own (read) | assigned (read) | — | — |
+  1020→| Employees CRUD | ALL | own | assigned (edit) | — | self (limited) |
+  1021→| Pay run execute/approve | YES | YES | YES | — | — |
+  1022→| RTI submit / resolve | YES | YES | view | — | — |
+  1023→| Settings / rate override | YES | own subset | — | — | — |
+  1024→| Financial reports | ALL | own | assigned | aggregates | — |
+  1025→| Audit ledger | ALL | own | — | — | — |
+  1026→| ESS self-service | — | — | — | — | YES (+ manager approvals if flagged) |
+  1027→
+  1028→## 11.2 Crypto, audit, retention
+  1029→- Argon2id (m=64 MB, t=3, p=4). Password policy: 12+ chars + HIBP k-anonymity breach check (no forced composition rules per NIST 800-63B).
+  1030→- Field encryption: AES-256-GCM, 96-bit nonce prepended; envelope encryption (per-tenant DEK wrapped by KMS KEK). `nino_hash` = HMAC-SHA256 with a dedicated search key.
+  1031→- TLS 1.2+, HSTS, SameSite=Strict cookies + origin check (CSRF), rate limits on auth and exports.
+  1032→- Audit hash chain: `curr_hash = SHA-256(prev_hash ‖ canonicalJSON(row))`; genesis constant; `GET /api/audit/verify` walks and reports first break; DB role INSERT-only + trigger blocking UPDATE/DELETE.
+  1033→- NINO masked everywhere (`AB 12 •• •• C`); full reveal = bureau_admin only, audited `NINO_VIEWED`.
+  1034→- Retention: payroll records 3 years statutory minimum (default 6); GDPR erasure = anonymisation AFTER retention expiry — statutory retention overrides erasure; audit rows never deleted.
+  1035→
+  1036→---
+  1037→
+  1038→# PART 12 — TESTING & ACCEPTANCE CRITERIA
+  1039→
+  1040→1. **Engine golden files (CI-blocking):** 25+ vectors incl. the £36k canonical proof (§5.13) — exact-penny assertions on tax/NI/SL/pension/net; cross-validated against HMRC Basic PAYE Tools and published 2026-27 HMRC test data.
+  1041→2. **Property tests:** ∀ gross ∈ [0, £50k/mo]: net ≤ gross (except refund months); NI band figures sum to E; Σ monthly cumulative tax over 12 months = annual liability ± £0.12 rounding drift; SL deduction is a whole £.
+  1042→3. **RTI:** generated XML validates against the 2026-27 XSD; IRmark verified on HMRC LTS; RIM-rule fixtures for every dictionary code; duplicate-submission guard test.
+  1043→4. **Tenancy (pgTAP):** cross-tenant SELECT under wrong `app.current_tenant` returns 0 rows on every scoped table.
+  1044→5. **E2E (Playwright):** login+MFA → add company (modulus warn path) → add employee (AE eligible) → pay-run 4 steps with live calc log → payslip approve → FPS accepted (mocked TE) → ESS sees payslip → holiday request → manager approval → 24 h bank-change cooling-off enforced. Axe: 0 critical violations.
+  1045→6. **Acceptance gates:** on-screen figures reproduce the canonical vector to the penny; variance flags fire at ±20/±50%; audit chain verifies end-to-end; recalculating a historical period uses that period's effective-dated rates.
+  1046→
+  1047→---
+  1048→
+  1049→# PART 13 — BUILD PHASES (critical path = HMRC recognition)
+  1050→
+  1051→```
+  1052→P0  wk 0–2   HMRC developer registration → Vendor ID + test credentials  ── clock starts
+  1053→             Repo, CI, Postgres schema + RLS, auth (JWT/TOTP/refresh), audit chain
+  1054→P1  wk 2–8   Calculation engine + golden tests · Companies/Employees CRUD + import
+  1055→             Pay-run wizard end-to-end (queued calc + WebSocket terminal log)
+  1056→P2  wk 6–14  RTI client (envelope, IRmark, submit/poll/delete) on LTS → TPVS/ETS
+  1057→             → recognition scenario pack to SDST → listing
+  1058→             DPS ingest · Pensions (NEST + PAPDIS) · Payslip PDF pipeline
+  1059→P3  wk 12–18 ESS portal complete · Reports + GPG · Settings/effective-dated rates · Notifications
+  1060→P4  wk 16–20 Year-end (P60 job, final FPS indicator) · hardening, pen-test, load test · pilot bureau
+  1061→GO-LIVE GATE: recognition listed + golden tests green + pilot parallel-run matches
+  1062→              incumbent software to the penny for one full pay cycle.
+  1063→```
+  1064→
+  1065→## END — FINAL PRD/TRD v2.0 · 31 screens · build-ready. Next instruction: BUILD.
+  1066→

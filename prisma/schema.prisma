@@ -1,0 +1,362 @@
+// Kedbyte Payroll — Prisma schema (SQLite-adapted for demo build)
+// Production uses PostgreSQL + RLS; SQLite mirrors the domain model.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ TENANCY & IDENTITY ============
+model Bureau {
+  id        String   @id @default(cuid())
+  name      String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id             String   @id @default(cuid())
+  tenantId       String
+  companyId      String?
+  employeeId     String?
+  email          String   @unique
+  passwordHash   String
+  role           String // bureau_admin | company_admin | payroll_manager | employee | accountant
+  isManager      Boolean  @default(false)
+  mfaEnabled     Boolean  @default(false)
+  failedLogins   Int      @default(0)
+  lockedUntil    DateTime?
+  lastLogin      DateTime?
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ============ COMPANIES & EMPLOYEES ============
+model Company {
+  id                       String   @id @default(cuid())
+  tenantId                 String
+  name                     String
+  payeRef                  String // 123/AB456
+  accountsOfficeRef        String
+  addressLine1             String?
+  addressCity              String?
+  addressPostcode          String?
+  bankSortCode             String?
+  bankAccount              String?
+  bankAccountName          String?
+  region                   String   @default("england_wales")
+  paySchedule              String   @default("monthly_last_working_day")
+  payDateDay               Int?
+  bacsSun                  String?
+  earlyPay                 Boolean  @default(true)
+  smallEmployer            Boolean  @default(false)
+  employmentAllowance      Boolean  @default(false)
+  status                   String   @default("active")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  employees                Employee[]
+  payRuns                  PayRun[]
+  pensionSchemes           PensionScheme[]
+}
+
+model Employee {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  companyId            String
+  managerId            String?
+  payrollId            String
+  firstName            String
+  lastName             String
+  email                String?
+  dob                  DateTime
+  gender               String?
+  nino                 String? // stored plaintext for demo (prod: AES-256-GCM enc)
+  addressLine1         String?
+  addressCity          String?
+  addressPostcode      String?
+  phone                String?
+  emergencyContact     String?
+  startDate            DateTime
+  leavingDate          DateTime?
+  starterDeclaration   String? // A | B | C
+  p45PrevPay           Float?
+  p45PrevTax           Float?
+  p45TaxCode           String?
+  salaryAnnual         Float
+  contractedWeeklyHours Float  @default(37.5)
+  worksPatternMon      Boolean  @default(true)
+  worksPatternTue      Boolean  @default(true)
+  worksPatternWed      Boolean  @default(true)
+  worksPatternThu      Boolean  @default(true)
+  worksPatternFri      Boolean  @default(true)
+  worksPatternSat      Boolean  @default(false)
+  worksPatternSun      Boolean  @default(false)
+  department           String?
+  jobTitle             String?
+  employmentType       String   @default("full_time")
+  taxCode              String   @default("1257L")
+  taxBasis             String   @default("cumul") // cumul | w1m1
+  niCategory           String   @default("A")
+  isDirector           Boolean  @default(false)
+  studentLoanPlan      String? // plan_1 | plan_2 | plan_4 | plan_5
+  postgradLoan         Boolean  @default(false)
+  bankSortCode         String?
+  bankAccount          String?
+  bankAccountName      String?
+  pensionStatus        String   @default("not_assessed") // eligible | enrolled | opted_out | not_assessed | entitled
+  pensionEnrolmentDate DateTime?
+  pensionOptoutDate    DateTime?
+  holidayEntitlementDays Float  @default(28)
+  holidayUsedDays      Float    @default(0)
+  status               String   @default("draft") // draft | active | leaver
+  company              Company  @relation(fields: [companyId], references: [id])
+  payRunEntries        PayRunEntry[]
+  holidays             Holiday[]
+  ytdFigures           YtdFigure[]
+  aeAssessments        AeAssessment[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model PendingBankChange {
+  id           String   @id @default(cuid())
+  tenantId     String
+  employeeId   String
+  sortCode     String
+  account      String
+  accountName  String?
+  requestedBy  String
+  requestedAt  DateTime @default(now())
+  activatesAt  DateTime
+  status       String   @default("pending") // pending | applied | cancelled
+}
+
+// ============ PAY RUNS ============
+model PayRun {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  companyId          String
+  taxYear            String // 2026-27
+  taxPeriod          Int // 1-12
+  periodStart        DateTime
+  periodEnd          DateTime
+  payDate            DateTime
+  bacsSubmissionDate DateTime?
+  status             String   @default("draft") // draft | calculating | calculated | review | approved | committed
+  totalsJson         String   @default("{}")
+  calculatedAt       DateTime?
+  approvedBy         String?
+  approvedAt         DateTime?
+  committedAt        DateTime?
+  company            Company  @relation(fields: [companyId], references: [id])
+  entries            PayRunEntry[]
+  rtiSubmissions     RtiSubmission[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model PayRunEntry {
+  id              String   @id @default(cuid())
+  tenantId        String
+  payRunId        String
+  employeeId      String
+  // inputs
+  overtimeHours   Float    @default(0)
+  overtimeMultiplier Float  @default(1.5)
+  bonus           Float    @default(0)
+  commission      Float    @default(0)
+  statutoryPay    Float    @default(0)
+  statutoryType   String?
+  adjustmentsJson String   @default("[]")
+  // engine outputs
+  gross           Float?
+  taxableGross    Float?
+  niableGross     Float?
+  tax             Float?
+  niEmployee      Float?
+  niEmployer      Float?
+  pensionEmployee Float?
+  pensionEmployer Float?
+  studentLoan     Float?
+  postgradLoan    Float?
+  net             Float?
+  earningsAtLel   Float?
+  earningsLelPt   Float?
+  earningsPtUel   Float?
+  variancePct     Float?
+  varianceFlag    String   @default("none") // none | warn | error
+  prevNet         Float?
+  status          String   @default("draft") // draft | calculated | approved | rejected | error
+  rejectReason    String?
+  payRun          PayRun   @relation(fields: [payRunId], references: [id])
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model YtdFigure {
+  employeeId   String
+  taxYear      String
+  taxable      Float    @default(0)
+  taxPaid      Float    @default(0)
+  niable       Float    @default(0)
+  niEe         Float    @default(0)
+  niEr         Float    @default(0)
+  pensionEe    Float    @default(0)
+  pensionEr    Float    @default(0)
+  studentLoan  Float    @default(0)
+  postgradLoan Float    @default(0)
+  gross        Float    @default(0)
+  net          Float    @default(0)
+  lastPeriod   Int      @default(0)
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  id           String   @id @default(cuid())
+  @@unique([employeeId, taxYear])
+}
+
+// ============ RTI ============
+model RtiSubmission {
+  id             String   @id @default(cuid())
+  tenantId       String
+  companyId      String
+  payRunId       String?
+  type           String // FPS | EPS | NVR
+  taxYear        String
+  taxPeriod      Int?
+  xmlPayload     String
+  irmark         String
+  correlationId  String?
+  status         String   @default("pending") // pending | submitted | polling | accepted | rejected | error
+  pollAfter      DateTime?
+  attempts       Int      @default(0)
+  hmrcResponse   String?
+  errorCode      String?
+  errorText      String?
+  submittedAt    DateTime?
+  resolvedAt     DateTime?
+  payRun         PayRun?  @relation(fields: [payRunId], references: [id])
+  createdAt      DateTime @default(now())
+}
+
+model RtiErrorDictionary {
+  code             String   @id
+  category         String?
+  severity         String?
+  hmrcMessage      String?
+  cause            String?
+  resolutionScreen String?
+  resolutionField  String?
+  guidedSteps      String? // JSON
+  autoRetry        Boolean  @default(false)
+}
+
+// ============ PENSIONS / HOLIDAYS / DOCS / AUDIT / CONFIG ============
+model PensionScheme {
+  id         String   @id @default(cuid())
+  tenantId   String
+  companyId  String
+  provider   String // NEST | Peoples | Smart | Aviva | Other
+  schemeRef  String?
+  basis      String   @default("qualifying_earnings")
+  relief     String   @default("relief_at_source")
+  eeRate     Float    @default(0.05)
+  erRate     Float    @default(0.03)
+  status     String   @default("active")
+  company    Company  @relation(fields: [companyId], references: [id])
+}
+
+model AeAssessment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  employeeId      String
+  assessedOn      DateTime
+  age             Int?
+  monthlyEarnings Float?
+  result          String // eligible | non_eligible | entitled
+  action          String? // enrolled | postponed | none
+  postponementEnd DateTime?
+  employee        Employee @relation(fields: [employeeId], references: [id])
+}
+
+model Holiday {
+  id           String   @id @default(cuid())
+  tenantId     String
+  employeeId   String
+  startDate    DateTime
+  endDate      DateTime
+  days         Float
+  reason       String?
+  status       String   @default("pending") // pending | approved | rejected | cancelled
+  approverId   String?
+  decidedAt    DateTime?
+  decisionNote String?
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model Document {
+  id            String   @id @default(cuid())
+  tenantId      String
+  companyId     String?
+  employeeId    String?
+  type          String // payslip | p60 | p45 | contract | other
+  taxYear       String?
+  payRunEntryId String?
+  storageKey    String
+  sha256        String
+  supersededBy  String?
+  status        String   @default("generated")
+  generatedAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String?
+  beforeJson  String?
+  afterJson   String?
+  reason      String?
+  ip          String?
+  prevHash    String
+  currHash    String
+  seq         Int
+  createdAt   DateTime @default(now())
+}
+
+model StatutoryConfig {
+  taxYear       String
+  effectiveFrom DateTime
+  key           String
+  valueJson     String
+  source        String?
+  id            String   @id @default(cuid())
+}
+
+model BankHoliday {
+  date        DateTime
+  region      String
+  name        String
+  bacsImpact  Boolean  @default(true)
+  id          String   @id @default(cuid())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  type      String
+  title     String
+  body      String?
+  actionUrl String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+}

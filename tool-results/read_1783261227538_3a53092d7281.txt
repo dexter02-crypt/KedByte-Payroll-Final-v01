@@ -1,0 +1,595 @@
+     1→<!DOCTYPE html>
+     2→
+     3→<html class="dark" lang="en"><head>
+     4→<meta charset="utf-8"/>
+     5→<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+     6→<title>Kedbyte Payroll - Reports &amp; Analytics</title>
+     7→<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+     8→<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+     9→<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    10→<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    11→<style>
+    12→        @font-face {
+    13→            font-family: 'SF Mono';
+    14→            src: local('SF Mono'), local('Courier New'), monospace;
+    15→        }
+    16→    </style>
+    17→<script id="tailwind-config">
+    18→        tailwind.config = {
+    19→            darkMode: "class",
+    20→            theme: {
+    21→                extend: {
+    22→                    "colors": {
+    23→                        "surface-container": "#1f1f21",
+    24→                        "surface-variant": "#353437",
+    25→                        "on-secondary": "#31302e",
+    26→                        "tertiary-container": "#0b0d0d",
+    27→                        "on-secondary-fixed": "#1c1b19",
+    28→                        "error-container": "#93000a",
+    29→                        "on-primary-fixed": "#1b1b1d",
+    30→                        "on-primary": "#313032",
+    31→                        "secondary-fixed-dim": "#c9c6c2",
+    32→                        "secondary-container": "#484744",
+    33→                        "tertiary-fixed": "#e2e2e2",
+    34→                        "on-tertiary-fixed-variant": "#454747",
+    35→                        "primary-container": "#0c0c0e",
+    36→                        "surface-dim": "#131315",
+    37→                        "on-tertiary-fixed": "#1a1c1c",
+    38→                        "surface": "#131315",
+    39→                        "surface-container-low": "#1b1b1d",
+    40→                        "secondary": "#c9c6c2",
+    41→                        "on-tertiary": "#2f3131",
+    42→                        "surface-tint": "#c8c6c8",
+    43→                        "inverse-surface": "#e5e1e4",
+    44→                        "primary-fixed": "#e5e1e4",
+    45→                        "inverse-primary": "#5f5e60",
+    46→                        "inverse-on-surface": "#303032",
+    47→                        "on-tertiary-container": "#797b7b",
+    48→                        "on-secondary-container": "#b8b5b1",
+    49→                        "background": "#131315",
+    50→                        "tertiary-fixed-dim": "#c6c6c7",
+    51→                        "surface-container-lowest": "#0e0e10",
+    52→                        "secondary-fixed": "#e6e2de",
+    53→                        "on-surface": "#e5e1e4",
+    54→                        "surface-container-highest": "#353437",
+    55→                        "on-error": "#690005",
+    56→                        "on-background": "#e5e1e4",
+    57→                        "tertiary": "#c6c6c7",
+    58→                        "on-primary-fixed-variant": "#474649",
+    59→                        "primary": "#c8c6c8",
+    60→                        "on-secondary-fixed-variant": "#484744",
+    61→                        "on-surface-variant": "#c8c5ca",
+    62→                        "on-error-container": "#ffdad6",
+    63→                        "outline": "#919095",
+    64→                        "on-primary-container": "#7b7a7c",
+    65→                        "surface-container-high": "#2a2a2c",
+    66→                        "surface-bright": "#39393b",
+    67→                        "outline-variant": "#47464a",
+    68→                        "error": "#ffb4ab",
+    69→                        "primary-fixed-dim": "#c8c6c8"
+    70→                    },
+    71→                    "borderRadius": {
+    72→                        "DEFAULT": "0.25rem",
+    73→                        "lg": "0.5rem",
+    74→                        "xl": "0.75rem",
+    75→                        "full": "9999px"
+    76→                    },
+    77→                    "spacing": {
+    78→                        "container-margin": "32px",
+    79→                        "stack-sm": "8px",
+    80→                        "stack-lg": "32px",
+    81→                        "gutter": "16px",
+    82→                        "unit": "4px",
+    83→                        "stack-md": "16px"
+    84→                    },
+    85→                    "fontFamily": {
+    86→                        "headline-md": ["Inter"],
+    87→                        "display-lg": ["Inter"],
+    88→                        "data-sm": ["\"SF Mono, monospace\""],
+    89→                        "label-caps": ["Inter"],
+    90→                        "body-sm": ["Inter"],
+    91→                        "data-lg": ["\"SF Mono, monospace\""],
+    92→                        "body-lg": ["Inter"],
+    93→                        "data-md": ["\"SF Mono, monospace\""]
+    94→                    },
+    95→                    "fontSize": {
+    96→                        "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "500" }],
+    97→                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+    98→                        "data-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }],
+    99→                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.06em", "fontWeight": "600" }],
+   100→                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+   101→                        "data-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "-0.02em", "fontWeight": "500" }],
+   102→                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+   103→                        "data-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+   104→                    }
+   105→                }
+   106→            }
+   107→        }
+   108→    </script>
+   109→</head>
+   110→<body class="bg-[#0C0C0E] text-on-surface font-body-sm h-screen overflow-hidden flex">
+   111→<!-- SideNavBar -->
+   112→<nav class="bg-surface-container dark:bg-surface-container text-primary dark:text-primary font-body-sm text-body-sm h-screen w-64 fixed left-0 top-0 border-r border-outline-variant flex flex-col h-full py-stack-lg z-20 hidden md:flex">
+   113→<div class="px-gutter mb-stack-lg flex items-center gap-3">
+   114→<img alt="Bureau Logo" class="w-8 h-8 rounded" data-alt="A hyper-minimalist warm-charcoal geometric logo representing stability and financial security, against a deep black background, utilizing high contrast lighting and sharp vector-like edges." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCR_M969RQXVBH9GPkzAwYwfALz5XEO4PAYtZCdsM-_eEleX4Nx8_35ZWIOgOcw_onY9hMf1WPoAShprPQcJXCMmRSFCQETKH5cUwWZ6jkpVXD36y7m61G6UTupo7f2J8br0ZYMVR_X8IKkEb2TFyvpu8MMJhdpYQuBf9w86kCMj9sjau6aBbyN-CfaYhaJtsCPFGlWS-IORcwHqon_1L3V9gQZrJeZsRRQRwBkclQZiIKMKyxN_z6F4BpKckCeMFEpq9LKHbu1c9F"/>
+   115→<div>
+   116→<div class="font-headline-md text-headline-md text-on-surface">Kedbyte</div>
+   117→<div class="text-on-surface-variant text-data-sm opacity-80">Payroll Bureau</div>
+   118→</div>
+   119→</div>
+   120→<div class="flex-1 overflow-y-auto px-unit flex flex-col gap-1">
+   121→<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-all duration-200 ease-in-out" href="#">
+   122→<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">dashboard</span>
+   123→<span>Dashboard</span>
+   124→</a>
+   125→<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-all duration-200 ease-in-out" href="#">
+   126→<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">payments</span>
+   127→<span>Payroll</span>
+   128→</a>
+   129→<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-all duration-200 ease-in-out" href="#">
+   130→<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">group</span>
+   131→<span>Employees</span>
+   132→</a>
+   133→<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-secondary-container text-on-secondary-container font-bold transition-all duration-200 ease-in-out" href="#">
+   134→<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">analytics</span>
+   135→<span>Reports</span>
+   136→</a>
+   137→<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-all duration-200 ease-in-out" href="#">
+   138→<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">account_balance</span>
+   139→<span>Pensions</span>
+   140→</a>
+   141→<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-all duration-200 ease-in-out" href="#">
+   142→<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">verified_user</span>
+   143→<span>Compliance</span>
+   144→</a>
+   145→</div>
+   146→<div class="px-unit mt-auto border-t border-[rgba(245,245,245,0.06)] pt-stack-sm flex flex-col gap-1">
+   147→<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-all duration-200 ease-in-out" href="#">
+   148→<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">help</span>
+   149→<span>Help</span>
+   150→</a>
+   151→<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant transition-all duration-200 ease-in-out" href="#">
+   152→<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">logout</span>
+   153→<span>Logout</span>
+   154→</a>
+   155→</div>
+   156→</nav>
+   157→<!-- Main Content Canvas -->
+   158→<div class="flex-1 flex flex-col md:ml-64 relative overflow-hidden h-full bg-[#0C0C0E]">
+   159→<!-- TopAppBar -->
+   160→<header class="bg-surface-container-lowest dark:bg-surface-container-lowest text-primary dark:text-primary font-headline-md text-headline-md w-full h-16 border-b border-outline-variant flex justify-between items-center px-container-margin z-10 shrink-0">
+   161→<div class="flex items-center gap-4">
+   162→<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary">Kedbyte Bureau</div>
+   163→<!-- Search -->
+   164→<div class="hidden lg:flex items-center bg-[#08080A] border border-[rgba(245,245,245,0.06)] rounded px-3 py-1.5 focus-within:border-[#E8E4E0] transition-colors ml-stack-md">
+   165→<span class="material-symbols-outlined text-on-surface-variant text-sm mr-2" style="font-size: 16px;">search</span>
+   166→<input class="bg-transparent border-none outline-none text-body-sm text-on-surface placeholder:text-on-surface-variant/50 w-64 focus:ring-0 p-0 h-auto font-data-sm" placeholder="Search reports..." type="text"/>
+   167→</div>
+   168→</div>
+   169→<div class="flex items-center gap-4">
+   170→<div class="flex items-center gap-2">
+   171→<button class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors p-2 rounded cursor-pointer active:opacity-80">
+   172→<span class="material-symbols-outlined">notifications</span>
+   173→</button>
+   174→<button class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors p-2 rounded cursor-pointer active:opacity-80">
+   175→<span class="material-symbols-outlined">settings</span>
+   176→</button>
+   177→<button class="text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors p-2 rounded cursor-pointer active:opacity-80">
+   178→<span class="material-symbols-outlined">help</span>
+   179→</button>
+   180→</div>
+   181→<div class="h-6 w-px bg-outline-variant mx-2"></div>
+   182→<div class="flex gap-2">
+   183→<button class="px-4 py-1.5 border border-[rgba(245,245,245,0.12)] rounded text-body-sm font-medium hover:bg-surface-variant transition-colors flex items-center gap-2">
+   184→<span>Support</span>
+   185→</button>
+   186→<button class="px-4 py-1.5 bg-[#E8E4E0] text-[#0C0C0E] rounded text-body-sm font-semibold hover:bg-white transition-colors flex items-center gap-2">
+   187→<span>Finalize Run</span>
+   188→</button>
+   189→</div>
+   190→<img alt="User profile" class="w-8 h-8 rounded-full border border-outline-variant ml-2 object-cover" data-alt="A professional close up portrait photograph of a financial partner in a dark suit, softly lit with warm key light, acting as a user profile avatar." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBqtV4iM5_0ou0F6eOnD3YbNICk18nPuhK1mTvRTvpCFKjjKkoIKUU9y7SMrdp7h3LoGXFcSf8hvp0o3kHmXVuYdYQQ4sMfr2OeCwPlDp2gqmWz9Y4bfC0tCPXZMvqvB4DxeNXVasPhIx9MdvKniRnkcw4gTmh87oE_smjlTst2FPA_RYhGSS1x9CaN0aACKk9HY-04h4iu-NuD9zSua5f7Ts1Hnbr3l07D4ZVjOWxEyKi6PMcX_2jiYmmGQWyHd7DRH7a_-nxypuAJ"/>
+   191→</div>
+   192→</header>
+   193→<!-- Scrollable Content -->
+   194→<main class="flex-1 overflow-y-auto overflow-x-hidden p-container-margin pb-24">
+   195→<!-- Breadcrumb & Actions -->
+   196→<div class="flex flex-col md:flex-row md:justify-between md:items-center mb-stack-lg gap-4 min-h-[36px]">
+   197→<div>
+   198→<h1 class="text-[13px] text-[#F5F5F5] font-semibold tracking-wide">Reports &amp; Analytics</h1>
+   199→</div>
+   200→<div class="flex flex-wrap items-center gap-3">
+   201→<!-- Date Range -->
+   202→<div class="flex items-center bg-[#08080A] border border-[rgba(245,245,245,0.06)] rounded px-3 py-1.5 hover:border-[rgba(245,245,245,0.12)] transition-colors cursor-pointer">
+   203→<span class="material-symbols-outlined text-[#A1A1AA] mr-2" style="font-size: 16px;">calendar_month</span>
+   204→<span class="text-data-sm text-[#F5F5F5] font-data-sm">YTD (Apr '23 - Present)</span>
+   205→</div>
+   206→<button class="px-3 py-1.5 border border-[rgba(245,245,245,0.12)] rounded text-data-sm font-medium text-[#A1A1AA] hover:text-[#F5F5F5] hover:border-[rgba(245,245,245,0.2)] transition-colors flex items-center gap-1.5">
+   207→<span class="material-symbols-outlined" style="font-size: 14px;">picture_as_pdf</span>
+   208→                        Export PDF
+   209→                    </button>
+   210→<button class="px-3 py-1.5 border border-[rgba(245,245,245,0.12)] rounded text-data-sm font-medium text-[#A1A1AA] hover:text-[#F5F5F5] hover:border-[rgba(245,245,245,0.2)] transition-colors flex items-center gap-1.5">
+   211→<span class="material-symbols-outlined" style="font-size: 14px;">csv</span>
+   212→                        Export CSV
+   213→                    </button>
+   214→<button class="px-4 py-1.5 bg-[#E8E4E0] text-[#0C0C0E] rounded text-data-sm font-semibold hover:bg-white transition-colors">
+   215→                        Save Report
+   216→                    </button>
+   217→</div>
+   218→</div>
+   219→<!-- Tabs -->
+   220→<div class="flex gap-2 border-b border-[rgba(245,245,245,0.06)] mb-stack-lg h-[32px] overflow-x-auto no-scrollbar">
+   221→<button class="px-4 pb-2 text-data-sm font-semibold text-[#F5F5F5] border-b-2 border-[#E8E4E0] whitespace-nowrap">Payroll Summary</button>
+   222→<button class="px-4 pb-2 text-data-sm font-medium text-[#A1A1AA] hover:text-[#F5F5F5] whitespace-nowrap transition-colors">PAYE &amp; NI</button>
+   223→<button class="px-4 pb-2 text-data-sm font-medium text-[#A1A1AA] hover:text-[#F5F5F5] whitespace-nowrap transition-colors">Pensions</button>
+   224→<button class="px-4 pb-2 text-data-sm font-medium text-[#A1A1AA] hover:text-[#F5F5F5] whitespace-nowrap transition-colors">Statutory Payments</button>
+   225→<button class="px-4 pb-2 text-data-sm font-medium text-[#A1A1AA] hover:text-[#F5F5F5] whitespace-nowrap transition-colors">Cost Analysis</button>
+   226→<button class="px-4 pb-2 text-data-sm font-medium text-[#A1A1AA] hover:text-[#F5F5F5] whitespace-nowrap transition-colors">Custom</button>
+   227→</div>
+   228→<!-- KPI Row -->
+   229→<div class="flex flex-wrap lg:flex-nowrap gap-3 mb-stack-lg border border-[rgba(245,245,245,0.06)] bg-[#141416] p-4">
+   230→<div class="flex-1 min-w-[200px] flex flex-col justify-between pr-3 border-r border-[rgba(245,245,245,0.06)] last:border-r-0">
+   231→<div class="text-[11px] uppercase tracking-wider text-[#A1A1AA] font-semibold mb-2">Total Gross Pay</div>
+   232→<div>
+   233→<div class="text-[32px] font-bold text-[#F5F5F5] font-data-sm leading-none mb-1">£1,975,400</div>
+   234→<div class="flex items-center text-[12px] text-[#4ADE80]">
+   235→<span class="material-symbols-outlined text-[14px] mr-1">arrow_upward</span>
+   236→                            +4.2%
+   237→                        </div>
+   238→</div>
+   239→</div>
+   240→<div class="flex-1 min-w-[200px] flex flex-col justify-between px-3 border-r border-[rgba(245,245,245,0.06)] last:border-r-0">
+   241→<div class="text-[11px] uppercase tracking-wider text-[#A1A1AA] font-semibold mb-2">Total Tax</div>
+   242→<div>
+   243→<div class="text-[32px] font-bold text-[#F5F5F5] font-data-sm leading-none mb-1">£395,080</div>
+   244→<div class="flex items-center text-[12px] text-[#F87171]">
+   245→<span class="material-symbols-outlined text-[14px] mr-1">arrow_downward</span>
+   246→                            -1.1%
+   247→                        </div>
+   248→</div>
+   249→</div>
+   250→<div class="flex-1 min-w-[200px] flex flex-col justify-between px-3 border-r border-[rgba(245,245,245,0.06)] last:border-r-0">
+   251→<div class="text-[11px] uppercase tracking-wider text-[#A1A1AA] font-semibold mb-2">Total NI</div>
+   252→<div>
+   253→<div class="text-[32px] font-bold text-[#F5F5F5] font-data-sm leading-none mb-1">£276,556</div>
+   254→<div class="flex items-center text-[12px] text-[#4ADE80]">
+   255→<span class="material-symbols-outlined text-[14px] mr-1">arrow_upward</span>
+   256→                            +2.3%
+   257→                        </div>
+   258→</div>
+   259→</div>
+   260→<div class="flex-1 min-w-[200px] flex flex-col justify-between pl-3 border-r border-[rgba(245,245,245,0.06)] last:border-r-0">
+   261→<div class="text-[11px] uppercase tracking-wider text-[#A1A1AA] font-semibold mb-2">Total Net Pay</div>
+   262→<div>
+   263→<div class="text-[32px] font-bold text-[#F5F5F5] font-data-sm leading-none mb-1">£1,303,764</div>
+   264→<div class="flex items-center text-[12px] text-[#4ADE80]">
+   265→<span class="material-symbols-outlined text-[14px] mr-1">arrow_upward</span>
+   266→                            +3.8%
+   267→                        </div>
+   268→</div>
+   269→</div>
+   270→</div>
+   271→<!-- Charts Row -->
+   272→<div class="flex flex-col xl:flex-row gap-gutter mb-stack-lg h-[400px]">
+   273→<!-- Main Chart (Bar) -->
+   274→<div class="w-full xl:w-[60%] bg-[#141416] border border-[rgba(245,245,245,0.06)] p-6 flex flex-col h-full">
+   275→<h2 class="text-[14px] font-semibold text-[#F5F5F5] mb-6 shrink-0">Pay Component Breakdown</h2>
+   276→<div class="flex-1 relative flex flex-col w-full">
+   277→<!-- Y-Axis Lines & Labels (Simulated) -->
+   278→<div class="absolute inset-0 flex flex-col justify-between pt-2 pb-6 z-0">
+   279→<div class="w-full border-t border-[rgba(245,245,245,0.04)] relative"><span class="absolute -left-10 -top-2 text-[10px] text-[#A1A1AA] font-data-sm text-right w-8">£300k</span></div>
+   280→<div class="w-full border-t border-[rgba(245,245,245,0.04)] relative"><span class="absolute -left-10 -top-2 text-[10px] text-[#A1A1AA] font-data-sm text-right w-8">£225k</span></div>
+   281→<div class="w-full border-t border-[rgba(245,245,245,0.04)] relative"><span class="absolute -left-10 -top-2 text-[10px] text-[#A1A1AA] font-data-sm text-right w-8">£150k</span></div>
+   282→<div class="w-full border-t border-[rgba(245,245,245,0.04)] relative"><span class="absolute -left-10 -top-2 text-[10px] text-[#A1A1AA] font-data-sm text-right w-8">£75k</span></div>
+   283→<div class="w-full border-t border-[rgba(245,245,245,0.04)] relative"><span class="absolute -left-10 -top-2 text-[10px] text-[#A1A1AA] font-data-sm text-right w-8">0</span></div>
+   284→</div>
+   285→<!-- Bar Chart Area (Simulated Data) -->
+   286→<div class="relative z-10 flex-1 flex items-end justify-between ml-2 mr-2 pb-[1px] mt-2 mb-6">
+   287→<!-- Month 1 -->
+   288→<div class="w-[4%] h-[60%] flex flex-col-reverse group cursor-pointer">
+   289→<div class="bg-[#E8E4E0] w-full h-[60%] transition-opacity group-hover:opacity-80"></div>
+   290→<div class="bg-[#A1A1AA] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   291→<div class="bg-[#F5F5F5] w-full h-[5%] transition-opacity group-hover:opacity-80"></div>
+   292→<div class="bg-[#52525B] w-full h-[25%] transition-opacity group-hover:opacity-80"></div>
+   293→</div>
+   294→<!-- Month 2 -->
+   295→<div class="w-[4%] h-[65%] flex flex-col-reverse group cursor-pointer">
+   296→<div class="bg-[#E8E4E0] w-full h-[55%] transition-opacity group-hover:opacity-80"></div>
+   297→<div class="bg-[#A1A1AA] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   298→<div class="bg-[#F5F5F5] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   299→<div class="bg-[#52525B] w-full h-[20%] transition-opacity group-hover:opacity-80"></div>
+   300→</div>
+   301→<!-- Month 3 -->
+   302→<div class="w-[4%] h-[58%] flex flex-col-reverse group cursor-pointer">
+   303→<div class="bg-[#E8E4E0] w-full h-[70%] transition-opacity group-hover:opacity-80"></div>
+   304→<div class="bg-[#A1A1AA] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   305→<div class="bg-[#F5F5F5] w-full h-[5%] transition-opacity group-hover:opacity-80"></div>
+   306→<div class="bg-[#52525B] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   307→</div>
+   308→<!-- Month 4 -->
+   309→<div class="w-[4%] h-[62%] flex flex-col-reverse group cursor-pointer">
+   310→<div class="bg-[#E8E4E0] w-full h-[60%] transition-opacity group-hover:opacity-80"></div>
+   311→<div class="bg-[#A1A1AA] w-full h-[20%] transition-opacity group-hover:opacity-80"></div>
+   312→<div class="bg-[#F5F5F5] w-full h-[5%] transition-opacity group-hover:opacity-80"></div>
+   313→<div class="bg-[#52525B] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   314→</div>
+   315→<!-- Month 5 -->
+   316→<div class="w-[4%] h-[75%] flex flex-col-reverse group cursor-pointer">
+   317→<div class="bg-[#E8E4E0] w-full h-[50%] transition-opacity group-hover:opacity-80"></div>
+   318→<div class="bg-[#A1A1AA] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   319→<div class="bg-[#F5F5F5] w-full h-[30%] transition-opacity group-hover:opacity-80"></div>
+   320→<div class="bg-[#52525B] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   321→</div>
+   322→<!-- Month 6 -->
+   323→<div class="w-[4%] h-[60%] flex flex-col-reverse group cursor-pointer">
+   324→<div class="bg-[#E8E4E0] w-full h-[65%] transition-opacity group-hover:opacity-80"></div>
+   325→<div class="bg-[#A1A1AA] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   326→<div class="bg-[#F5F5F5] w-full h-[5%] transition-opacity group-hover:opacity-80"></div>
+   327→<div class="bg-[#52525B] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   328→</div>
+   329→<!-- Month 7 -->
+   330→<div class="w-[4%] h-[64%] flex flex-col-reverse group cursor-pointer">
+   331→<div class="bg-[#E8E4E0] w-full h-[60%] transition-opacity group-hover:opacity-80"></div>
+   332→<div class="bg-[#A1A1AA] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   333→<div class="bg-[#F5F5F5] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   334→<div class="bg-[#52525B] w-full h-[20%] transition-opacity group-hover:opacity-80"></div>
+   335→</div>
+   336→<!-- Month 8 -->
+   337→<div class="w-[4%] h-[55%] flex flex-col-reverse group cursor-pointer">
+   338→<div class="bg-[#E8E4E0] w-full h-[70%] transition-opacity group-hover:opacity-80"></div>
+   339→<div class="bg-[#A1A1AA] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   340→<div class="bg-[#F5F5F5] w-full h-[5%] transition-opacity group-hover:opacity-80"></div>
+   341→<div class="bg-[#52525B] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   342→</div>
+   343→<!-- Month 9 -->
+   344→<div class="w-[4%] h-[68%] flex flex-col-reverse group cursor-pointer">
+   345→<div class="bg-[#E8E4E0] w-full h-[55%] transition-opacity group-hover:opacity-80"></div>
+   346→<div class="bg-[#A1A1AA] w-full h-[20%] transition-opacity group-hover:opacity-80"></div>
+   347→<div class="bg-[#F5F5F5] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   348→<div class="bg-[#52525B] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   349→</div>
+   350→<!-- Month 10 -->
+   351→<div class="w-[4%] h-[72%] flex flex-col-reverse group cursor-pointer">
+   352→<div class="bg-[#E8E4E0] w-full h-[50%] transition-opacity group-hover:opacity-80"></div>
+   353→<div class="bg-[#A1A1AA] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   354→<div class="bg-[#F5F5F5] w-full h-[25%] transition-opacity group-hover:opacity-80"></div>
+   355→<div class="bg-[#52525B] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   356→</div>
+   357→<!-- Month 11 -->
+   358→<div class="w-[4%] h-[65%] flex flex-col-reverse group cursor-pointer">
+   359→<div class="bg-[#E8E4E0] w-full h-[60%] transition-opacity group-hover:opacity-80"></div>
+   360→<div class="bg-[#A1A1AA] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   361→<div class="bg-[#F5F5F5] w-full h-[10%] transition-opacity group-hover:opacity-80"></div>
+   362→<div class="bg-[#52525B] w-full h-[20%] transition-opacity group-hover:opacity-80"></div>
+   363→</div>
+   364→<!-- Month 12 -->
+   365→<div class="w-[4%] h-[85%] flex flex-col-reverse group cursor-pointer">
+   366→<div class="bg-[#E8E4E0] w-full h-[45%] transition-opacity group-hover:opacity-80"></div>
+   367→<div class="bg-[#A1A1AA] w-full h-[15%] transition-opacity group-hover:opacity-80"></div>
+   368→<div class="bg-[#F5F5F5] w-full h-[35%] transition-opacity group-hover:opacity-80"></div>
+   369→<div class="bg-[#52525B] w-full h-[5%] transition-opacity group-hover:opacity-80"></div>
+   370→</div>
+   371→</div>
+   372→<!-- X-Axis Labels -->
+   373→<div class="absolute bottom-0 left-0 right-0 flex justify-between ml-2 mr-2 h-6">
+   374→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Apr</span>
+   375→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">May</span>
+   376→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Jun</span>
+   377→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Jul</span>
+   378→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Aug</span>
+   379→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Sep</span>
+   380→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Oct</span>
+   381→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Nov</span>
+   382→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Dec</span>
+   383→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Jan</span>
+   384→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Feb</span>
+   385→<span class="text-[10px] text-[#A1A1AA] font-data-sm w-[4%] text-center">Mar</span>
+   386→</div>
+   387→</div>
+   388→</div>
+   389→<!-- Breakdown Panel (Donut) -->
+   390→<div class="w-full xl:w-[40%] bg-[#141416] border border-[rgba(245,245,245,0.06)] p-6 flex flex-col h-full">
+   391→<h2 class="text-[14px] font-semibold text-[#F5F5F5] mb-6 shrink-0">Pay Components</h2>
+   392→<div class="flex-1 flex flex-col items-center justify-center relative">
+   393→<!-- Simulated Donut Chart SVG -->
+   394→<div class="relative w-[160px] h-[160px] mb-8">
+   395→<svg class="w-full h-full transform -rotate-90" viewbox="0 0 100 100">
+   396→<!-- Basic Pay (approx 60%) -->
+   397→<circle class="transition-all duration-300 hover:stroke-width-18 cursor-pointer" cx="50" cy="50" fill="transparent" r="40" stroke="#E8E4E0" stroke-dasharray="150.8 251.2" stroke-dashoffset="0" stroke-width="16"></circle>
+   398→<!-- Overtime (approx 15%) -->
+   399→<circle class="transition-all duration-300 hover:stroke-width-18 cursor-pointer" cx="50" cy="50" fill="transparent" r="40" stroke="#A1A1AA" stroke-dasharray="37.7 251.2" stroke-dashoffset="-150.8" stroke-width="16"></circle>
+   400→<!-- Bonus (approx 15%) -->
+   401→<circle class="transition-all duration-300 hover:stroke-width-18 cursor-pointer" cx="50" cy="50" fill="transparent" r="40" stroke="#F5F5F5" stroke-dasharray="37.7 251.2" stroke-dashoffset="-188.5" stroke-width="16"></circle>
+   402→<!-- Commission (approx 10%) -->
+   403→<circle class="transition-all duration-300 hover:stroke-width-18 cursor-pointer" cx="50" cy="50" fill="transparent" r="40" stroke="#52525B" stroke-dasharray="25.1 251.2" stroke-dashoffset="-226.2" stroke-width="16"></circle>
+   404→</svg>
+   405→<!-- Inner Text -->
+   406→<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+   407→<span class="text-[10px] text-[#A1A1AA] uppercase tracking-wider">Total</span>
+   408→<span class="text-[14px] font-semibold text-[#F5F5F5] font-data-sm">1.97M</span>
+   409→</div>
+   410→</div>
+   411→<!-- Legend -->
+   412→<div class="w-full space-y-3">
+   413→<div class="flex items-center justify-between group">
+   414→<div class="flex items-center gap-2">
+   415→<div class="w-2 h-2 rounded-full bg-[#E8E4E0]"></div>
+   416→<span class="text-[12px] text-[#A1A1AA] group-hover:text-[#F5F5F5] transition-colors">Basic Pay</span>
+   417→</div>
+   418→<div class="text-right">
+   419→<span class="text-[12px] text-[#F5F5F5] font-data-sm">£1,185,240</span>
+   420→<span class="text-[10px] text-[#A1A1AA] ml-2 w-8 inline-block text-right">60%</span>
+   421→</div>
+   422→</div>
+   423→<div class="flex items-center justify-between group">
+   424→<div class="flex items-center gap-2">
+   425→<div class="w-2 h-2 rounded-full bg-[#A1A1AA]"></div>
+   426→<span class="text-[12px] text-[#A1A1AA] group-hover:text-[#F5F5F5] transition-colors">Overtime</span>
+   427→</div>
+   428→<div class="text-right">
+   429→<span class="text-[12px] text-[#F5F5F5] font-data-sm">£296,310</span>
+   430→<span class="text-[10px] text-[#A1A1AA] ml-2 w-8 inline-block text-right">15%</span>
+   431→</div>
+   432→</div>
+   433→<div class="flex items-center justify-between group">
+   434→<div class="flex items-center gap-2">
+   435→<div class="w-2 h-2 rounded-full bg-[#F5F5F5]"></div>
+   436→<span class="text-[12px] text-[#A1A1AA] group-hover:text-[#F5F5F5] transition-colors">Bonus</span>
+   437→</div>
+   438→<div class="text-right">
+   439→<span class="text-[12px] text-[#F5F5F5] font-data-sm">£296,310</span>
+   440→<span class="text-[10px] text-[#A1A1AA] ml-2 w-8 inline-block text-right">15%</span>
+   441→</div>
+   442→</div>
+   443→<div class="flex items-center justify-between group">
+   444→<div class="flex items-center gap-2">
+   445→<div class="w-2 h-2 rounded-full bg-[#52525B]"></div>
+   446→<span class="text-[12px] text-[#A1A1AA] group-hover:text-[#F5F5F5] transition-colors">Commission</span>
+   447→</div>
+   448→<div class="text-right">
+   449→<span class="text-[12px] text-[#F5F5F5] font-data-sm">£197,540</span>
+   450→<span class="text-[10px] text-[#A1A1AA] ml-2 w-8 inline-block text-right">10%</span>
+   451→</div>
+   452→</div>
+   453→</div>
+   454→</div>
+   455→</div>
+   456→</div>
+   457→<!-- Employee Cost Table -->
+   458→<div class="w-full bg-[#141416] border border-[rgba(245,245,245,0.06)] flex flex-col">
+   459→<div class="p-6 border-b border-[rgba(245,245,245,0.06)] flex justify-between items-center">
+   460→<h2 class="text-[14px] font-semibold text-[#F5F5F5]">Top 10 Highest-Cost Employees</h2>
+   461→<button class="text-[12px] text-[#A1A1AA] hover:text-[#F5F5F5] transition-colors flex items-center gap-1">
+   462→                        View Full List <span class="material-symbols-outlined text-[14px]">chevron_right</span>
+   463→</button>
+   464→</div>
+   465→<div class="w-full overflow-x-auto">
+   466→<table class="w-full text-left border-collapse whitespace-nowrap min-w-[800px]">
+   467→<thead>
+   468→<tr class="bg-[#141416] h-[48px] border-b border-[rgba(245,245,245,0.06)]">
+   469→<th class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold px-4 w-16 text-center">Rank</th>
+   470→<th class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold px-4">Employee</th>
+   471→<th class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold px-4">Department</th>
+   472→<th class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold px-4 text-right">Gross</th>
+   473→<th class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold px-4 text-right">Employer NI</th>
+   474→<th class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold px-4 text-right">Pension</th>
+   475→<th class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold px-4 pr-6">Total Cost</th>
+   476→</tr>
+   477→</thead>
+   478→<tbody class="font-data-sm text-[#F5F5F5]">
+   479→<!-- Row 1 -->
+   480→<tr class="h-[48px] bg-[#0C0C0E] border-b border-[rgba(245,245,245,0.04)] hover:bg-[#141416] transition-colors group">
+   481→<td class="px-4 text-center text-[#A1A1AA] text-[12px]">01</td>
+   482→<td class="px-4">
+   483→<div class="flex items-center gap-3">
+   484→<img alt="Avatar" class="w-6 h-6 rounded object-cover grayscale opacity-80 group-hover:opacity-100 transition-opacity" data-alt="A small, professional grayscale corporate headshot of a mature male executive against a plain dark background, high contrast lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7AkLi0_h6UbsVF4c3Qr3SceW3QJHmBhV8Y6ndq5TbXwKlEICP3bQOwaDt24GM6Ud_ApZ02_UOdl2vthi285oO8mvkK15JqNNcC_QuTzCSCOH0nuAPdYrQfNLsVslqWXVAFgXSkSoaG2ezBpNKPPR2Ys119V_CPKsa8UG5xUE-BTOTP7oJ3hwSCUQYghaXkPksJ5IkUFC3CEHvBNlS0kdhZRr-SPztbZMstk1NJbBFNMqgG6_O6x1mQJAhqWcw5giuRuzeOFyqU01b"/>
+   485→<span class="font-body-sm text-[13px]">Alexander Sterling</span>
+   486→</div>
+   487→</td>
+   488→<td class="px-4 text-[#A1A1AA] text-[12px]">Executive</td>
+   489→<td class="px-4 text-right">£25,000.00</td>
+   490→<td class="px-4 text-right text-[#A1A1AA]">£3,450.00</td>
+   491→<td class="px-4 text-right text-[#A1A1AA]">£1,250.00</td>
+   492→<td class="px-4 pr-6">
+   493→<div class="flex items-center gap-3 w-[180px]">
+   494→<span class="w-20 font-semibold">£29,700.00</span>
+   495→<div class="flex-1 h-1 bg-[#1A1A1D] rounded-full overflow-hidden">
+   496→<div class="h-full bg-[#E8E4E0] w-[100%] rounded-full"></div>
+   497→</div>
+   498→</div>
+   499→</td>
+   500→</tr>
+   501→<!-- Row 2 -->
+   502→<tr class="h-[48px] bg-[#0E0E10] border-b border-[rgba(245,245,245,0.04)] hover:bg-[#141416] transition-colors group">
+   503→<td class="px-4 text-center text-[#A1A1AA] text-[12px]">02</td>
+   504→<td class="px-4">
+   505→<div class="flex items-center gap-3">
+   506→<div class="w-6 h-6 rounded bg-[#1A1A1D] border border-[rgba(245,245,245,0.1)] flex items-center justify-center text-[10px] text-[#A1A1AA]">VC</div>
+   507→<span class="font-body-sm text-[13px]">Victoria Chen</span>
+   508→</div>
+   509→</td>
+   510→<td class="px-4 text-[#A1A1AA] text-[12px]">Engineering</td>
+   511→<td class="px-4 text-right">£18,500.00</td>
+   512→<td class="px-4 text-right text-[#A1A1AA]">£2,553.00</td>
+   513→<td class="px-4 text-right text-[#A1A1AA]">£925.00</td>
+   514→<td class="px-4 pr-6">
+   515→<div class="flex items-center gap-3 w-[180px]">
+   516→<span class="w-20 font-semibold">£21,978.00</span>
+   517→<div class="flex-1 h-1 bg-[#1A1A1D] rounded-full overflow-hidden">
+   518→<div class="h-full bg-[#E8E4E0] w-[74%] rounded-full opacity-80"></div>
+   519→</div>
+   520→</div>
+   521→</td>
+   522→</tr>
+   523→<!-- Row 3 -->
+   524→<tr class="h-[48px] bg-[#0C0C0E] border-b border-[rgba(245,245,245,0.04)] hover:bg-[#141416] transition-colors group">
+   525→<td class="px-4 text-center text-[#A1A1AA] text-[12px]">03</td>
+   526→<td class="px-4">
+   527→<div class="flex items-center gap-3">
+   528→<div class="w-6 h-6 rounded bg-[#1A1A1D] border border-[rgba(245,245,245,0.1)] flex items-center justify-center text-[10px] text-[#A1A1AA]">MB</div>
+   529→<span class="font-body-sm text-[13px]">Marcus Black</span>
+   530→</div>
+   531→</td>
+   532→<td class="px-4 text-[#A1A1AA] text-[12px]">Sales</td>
+   533→<td class="px-4 text-right">£16,200.00</td>
+   534→<td class="px-4 text-right text-[#A1A1AA]">£2,235.60</td>
+   535→<td class="px-4 text-right text-[#A1A1AA]">£810.00</td>
+   536→<td class="px-4 pr-6">
+   537→<div class="flex items-center gap-3 w-[180px]">
+   538→<span class="w-20 font-semibold">£19,245.60</span>
+   539→<div class="flex-1 h-1 bg-[#1A1A1D] rounded-full overflow-hidden">
+   540→<div class="h-full bg-[#E8E4E0] w-[65%] rounded-full opacity-60"></div>
+   541→</div>
+   542→</div>
+   543→</td>
+   544→</tr>
+   545→<!-- Row 4 -->
+   546→<tr class="h-[48px] bg-[#0E0E10] border-b border-[rgba(245,245,245,0.04)] hover:bg-[#141416] transition-colors group">
+   547→<td class="px-4 text-center text-[#A1A1AA] text-[12px]">04</td>
+   548→<td class="px-4">
+   549→<div class="flex items-center gap-3">
+   550→<img alt="Avatar" class="w-6 h-6 rounded object-cover grayscale opacity-80 group-hover:opacity-100 transition-opacity" data-alt="A small, professional grayscale corporate headshot of a young female professional against a plain dark background, high contrast lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9pZnUmdlnLni8uGbFDIoDEmx1fd5_5N17vZWMNA6MxuFVlpoW26KCCcbJ-a4HG5KcN8tF8wb332rAd60eAJW-6raOin8fL7gqzMHsh7iDM3C0yLJDivm_ac3Grd3rr6WnzDMYaJYOF1Glf3g03i-zAFKbc6-7WCzEjagXtD_StVY2n_f8W_o7fG-A7J1--IwhYi8vqzdF94zzN6LOT4tEU-ceTR0MXiagvw9XUWP96Oaaf5m69jM_ySKUmLHUk51HpAUdhXkTxIPc"/>
+   551→<span class="font-body-sm text-[13px]">Eleanor Vance</span>
+   552→</div>
+   553→</td>
+   554→<td class="px-4 text-[#A1A1AA] text-[12px]">Legal</td>
+   555→<td class="px-4 text-right">£14,800.00</td>
+   556→<td class="px-4 text-right text-[#A1A1AA]">£2,042.40</td>
+   557→<td class="px-4 text-right text-[#A1A1AA]">£740.00</td>
+   558→<td class="px-4 pr-6">
+   559→<div class="flex items-center gap-3 w-[180px]">
+   560→<span class="w-20 font-semibold">£17,582.40</span>
+   561→<div class="flex-1 h-1 bg-[#1A1A1D] rounded-full overflow-hidden">
+   562→<div class="h-full bg-[#E8E4E0] w-[59%] rounded-full opacity-40"></div>
+   563→</div>
+   564→</div>
+   565→</td>
+   566→</tr>
+   567→<!-- Row 5 -->
+   568→<tr class="h-[48px] bg-[#0C0C0E] border-b border-[rgba(245,245,245,0.04)] hover:bg-[#141416] transition-colors group">
+   569→<td class="px-4 text-center text-[#A1A1AA] text-[12px]">05</td>
+   570→<td class="px-4">
+   571→<div class="flex items-center gap-3">
+   572→<div class="w-6 h-6 rounded bg-[#1A1A1D] border border-[rgba(245,245,245,0.1)] flex items-center justify-center text-[10px] text-[#A1A1AA]">JT</div>
+   573→<span class="font-body-sm text-[13px]">Jonathan Thorne</span>
+   574→</div>
+   575→</td>
+   576→<td class="px-4 text-[#A1A1AA] text-[12px]">Finance</td>
+   577→<td class="px-4 text-right">£13,500.00</td>
+   578→<td class="px-4 text-right text-[#A1A1AA]">£1,863.00</td>
+   579→<td class="px-4 text-right text-[#A1A1AA]">£675.00</td>
+   580→<td class="px-4 pr-6">
+   581→<div class="flex items-center gap-3 w-[180px]">
+   582→<span class="w-20 font-semibold">£16,038.00</span>
+   583→<div class="flex-1 h-1 bg-[#1A1A1D] rounded-full overflow-hidden">
+   584→<div class="h-full bg-[#E8E4E0] w-[54%] rounded-full opacity-30"></div>
+   585→</div>
+   586→</div>
+   587→</td>
+   588→</tr>
+   589→</tbody>
+   590→</table>
+   591→</div>
+   592→</div>
+   593→</main>
+   594→</div>
+   595→</body></html>
