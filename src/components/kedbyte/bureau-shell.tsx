@@ -21,6 +21,7 @@ const PensionsView = dynamic(() => import("@/components/kedbyte/views/pensions")
 const ReportsView = dynamic(() => import("@/components/kedbyte/views/reports").then(m => ({ default: m.ReportsView })), { ssr: false });
 const SettingsView = dynamic(() => import("@/components/kedbyte/views/settings").then(m => ({ default: m.SettingsView })), { ssr: false });
 const BureauNotificationsView = dynamic(() => import("@/components/kedbyte/views/bureau-notifications").then(m => ({ default: m.BureauNotificationsView })), { ssr: false });
+const RtiErrorsView = dynamic(() => import("@/components/kedbyte/views/rti-errors").then(m => ({ default: m.RtiErrorsView })), { ssr: false });
 
 const NAV: { view: BureauView; label: string; icon: string }[] = [
   { view: "dashboard", label: "Dashboard", icon: "dashboard" },
@@ -133,6 +134,7 @@ export function BureauShell() {
       case "payrun_review": return <PayRunReview />;
       case "payrun_submission": return <PayRunSubmission />;
       case "rti": return <RtiView />;
+      case "rti_errors": return <RtiErrorsView />;
       case "pensions": return <PensionsView />;
       case "reports": return <ReportsView />;
       case "settings": return <SettingsView />;
