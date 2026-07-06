@@ -222,11 +222,13 @@ function ErrorCard({ e }: { e: ErrorDictEntry }) {
 
 // ============ MAIN COMPONENT ============
 export function RtiView() {
-  const { setBureauView } = useApp();
+  const { setBureauView, user } = useApp();
   const [submissions, setSubmissions] = React.useState<Submission[]>([]);
   const [errors, setErrors] = React.useState<ErrorDictEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selected, setSelected] = React.useState<Submission | null>(null);
+  const [fpsModalOpen, setFpsModalOpen] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
 
   // Filters
   const [taxYearFilter, setTaxYearFilter] = React.useState("all");
@@ -235,7 +237,7 @@ export function RtiView() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [typeFilter, setTypeFilter] = React.useState("all");
 
-  React.useEffect(() => {
+  const load = React.useCallback(() => {
     setLoading(true);
     fetch("/api/rti")
       .then((r) => r.json())
@@ -246,6 +248,8 @@ export function RtiView() {
       .catch(() => toast("Failed to load RTI submissions", "error"))
       .finally(() => setLoading(false));
   }, []);
+
+  React.useEffect(() => { load(); }, [load]);
 
   // Derive filter option lists
   const taxYears = React.useMemo(() => {
@@ -316,7 +320,7 @@ export function RtiView() {
             Error Dictionary
           </GhostButton>
           <PearlButton
-            onClick={() => toast("FPS submission wizard queued", "info")}
+            onClick={() => setFpsModalOpen(true)}
           >
             <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">send</span>
             Submit FPS
@@ -675,9 +679,20 @@ export function RtiView() {
               <GhostButton onClick={() => setSelected(null)}>Close</GhostButton>
               {(selected.status === "rejected" || selected.status === "error") && (
                 <PearlButton
-                  onClick={() => {
-                    toast("Resubmission queued", "info");
-                    setSelected(null);
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/rti/${selected.id}/resubmit`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                      const d = await res.json();
+                      if (res.ok) {
+                        toast(d.message || "FPS resubmission queued", "success");
+                        setSelected(null);
+                        setTimeout(load, 2000);
+                      } else {
+                        toast(d.error || "Resubmission failed", "error");
+                      }
+                    } catch (e) {
+                      toast("Network error", "error");
+                    }
                   }}
                 >
                   <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">refresh</span>
@@ -688,6 +703,151 @@ export function RtiView() {
           </div>
         )}
       </Modal>
+
+      {/* FPS Submission Modal */}
+      <FpsSubmitModal
+        open={fpsModalOpen}
+        onClose={() => setFpsModalOpen(false)}
+        onSubmitted={() => {
+          setFpsModalOpen(false);
+          setTimeout(load, 2000);
+        }}
+        userId={user?.id || "user_admin"}
+      />
     </div>
+  );
+}
+
+// ============ FPS SUBMISSION MODAL ============
+function FpsSubmitModal({ open, onClose, onSubmitted, userId }: { open: boolean; onClose: () => void; onSubmitted: () => void; userId: string }) {
+  const [companies, setCompanies] = React.useState<{ id: string; name: string }[]>([]);
+  const [selectedCompany, setSelectedCompany] = React.useState("");
+  const [payRuns, setPayRuns] = React.useState<any[]>([]);
+  const [selectedPayRun, setSelectedPayRun] = React.useState("");
+  const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (open) {
+      fetch("/api/companies")
+        .then((r) => r.json())
+        .then((d) => setCompanies(d.companies || []))
+        .catch(() => {});
+    }
+  }, [open]);
+
+  React.useEffect(() => {
+    if (selectedCompany) {
+      fetch(`/api/companies/${selectedCompany}`)
+        .then((r) => r.json())
+        .then((d) => {
+          const committed = (d.payRuns || []).filter((pr: any) => pr.status === "committed");
+          setPayRuns(committed);
+        })
+        .catch(() => {});
+    } else {
+      setPayRuns([]);
+    }
+  }, [selectedCompany]);
+
+  const submit = async () => {
+    if (!selectedPayRun || !selectedCompany) {
+      toast("Select a company and pay run", "error");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/rti/fps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payRunId: selectedPayRun, companyId: selectedCompany, actorId: userId }),
+      });
+      const d = await res.json();
+      setSubmitting(false);
+      if (res.ok || res.status === 202) {
+        toast(d.message || "FPS submitted successfully", "success");
+        onSubmitted();
+      } else {
+        toast(d.error || "FPS submission failed", "error");
+      }
+    } catch (e) {
+      setSubmitting(false);
+      toast("Network error", "error");
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Submit FPS to HMRC">
+      <div className="flex flex-col gap-4">
+        <div className="border border-subtle bg-surface-low px-4 py-3 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[16px] text-warning">info</span>
+          <p className="text-[12px] text-tsecondary">Submits a Full Payment Submission (FPS) to HMRC for the selected pay run. The pay run must be committed. HMRC will return a correlation ID and acceptance status.</p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="label-caps text-tsecondary">Company</label>
+          <select
+            value={selectedCompany}
+            onChange={(e) => { setSelectedCompany(e.target.value); setSelectedPayRun(""); }}
+            className="bg-surface-low border border-subtle px-3 py-2 text-[13px] text-tprimary outline-none focus:border-pearl transition-colors"
+          >
+            <option value="">Select a company…</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id} className="bg-surface-low">{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedCompany && (
+          <div className="flex flex-col gap-1.5">
+            <label className="label-caps text-tsecondary">Pay Run (committed only)</label>
+            {payRuns.length === 0 ? (
+              <div className="border border-subtle px-3 py-3 text-[12px] text-ttertiary">No committed pay runs for this company. Finalize a pay run first.</div>
+            ) : (
+              <select
+                value={selectedPayRun}
+                onChange={(e) => setSelectedPayRun(e.target.value)}
+                className="bg-surface-low border border-subtle px-3 py-2 text-[13px] text-tprimary outline-none focus:border-pearl transition-colors"
+              >
+                <option value="">Select a pay run…</option>
+                {payRuns.map((pr) => (
+                  <option key={pr.id} value={pr.id} className="bg-surface-low">
+                    PR-2026-M{String(pr.taxPeriod).padStart(2, "0")} · Tax Year {pr.taxYear} · Pay date {pr.payDate?.slice(0, 10) || "—"}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        {selectedPayRun && (
+          <div className="border border-subtle bg-surface-low p-3">
+            <div className="label-caps text-ttertiary mb-2">Submission Summary</div>
+            <div className="flex flex-col gap-1 text-[12px]">
+              <div className="flex justify-between"><span className="text-tsecondary">Type</span><span className="text-tprimary font-mono">FPS</span></div>
+              <div className="flex justify-between"><span className="text-tsecondary">Endpoint</span><span className="text-tprimary font-mono">HMRC Transaction Engine</span></div>
+              <div className="flex justify-between"><span className="text-tsecondary">XML</span><span className="text-tprimary font-mono">Auto-generated from committed entries</span></div>
+              <div className="flex justify-between"><span className="text-tsecondary">IRmark</span><span className="text-tprimary font-mono">Computed (SHA-1 canonical)</span></div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+          <GhostButton onClick={onClose}>Cancel</GhostButton>
+          <PearlButton onClick={submit} disabled={submitting || !selectedPayRun}>
+            {submitting ? (
+              <>
+                <span className="material-symbols-outlined text-[14px] mr-1.5 align-middle animate-spin">progress_activity</span>
+                Submitting…
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">send</span>
+                Submit FPS
+              </>
+            )}
+          </PearlButton>
+        </div>
+      </div>
+    </Modal>
   );
 }
