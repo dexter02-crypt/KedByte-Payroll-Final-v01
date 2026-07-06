@@ -93,14 +93,22 @@ export function BureauShell() {
     loadNotifs(); // Refresh immediately
   };
 
-  const markAllRead = async () => {
-    if (!user) return;
-    await fetch("/api/notifications", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "mark-all-read", userId: user.id }),
-    });
-    loadNotifs();
+  const markAllRead = async (uid: string) => {
+    if (!uid) return;
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark-all-read", userId: uid }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        toast(`Marked ${d.updated || "all"} notifications as read`, "success");
+        loadNotifs();
+      }
+    } catch (e) {
+      toast("Failed to mark all read", "error");
+    }
   };
 
   // Determine which nav item is active based on current view
@@ -225,8 +233,8 @@ export function BureauShell() {
 
         {/* Notifications dropdown */}
         {notifOpen && (
-          <div className="absolute right-8 top-14 w-96 bg-surface border border-subtle z-40 shadow-2xl">
-            <div className="px-4 py-3 border-b border-subtle flex items-center justify-between">
+          <div className="fixed right-4 top-14 w-96 bg-surface border border-subtle z-[100] flex flex-col" style={{ maxHeight: "80vh", boxShadow: "0 8px 32px rgba(0,0,0,0.6)" }}>
+            <div className="px-4 py-3 border-b border-subtle flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <span className="label-caps text-tsecondary">Notifications</span>
                 {notifications.filter((n) => !n.readAt).length > 0 && (
@@ -235,14 +243,14 @@ export function BureauShell() {
               </div>
               <div className="flex items-center gap-2">
                 {notifications.filter((n) => !n.readAt).length > 0 && (
-                  <button onClick={markAllRead} className="text-[10px] text-tsecondary hover:text-pearl uppercase tracking-wider">Mark all read</button>
+                  <button onClick={() => markAllRead(user?.id || "")} className="text-[10px] text-tsecondary hover:text-pearl uppercase tracking-wider">Mark all read</button>
                 )}
                 <button onClick={() => setNotifOpen(false)} className="text-ttertiary hover:text-tprimary">
                   <span className="material-symbols-outlined text-[16px]">close</span>
                 </button>
               </div>
             </div>
-            <div className="max-h-96 overflow-y-auto scroll-thin">
+            <div className="flex-1 overflow-y-auto scroll-thin" style={{ minHeight: "200px" }}>
               {notifications.length === 0 ? (
                 <div className="px-4 py-8 text-center text-[12px] text-ttertiary">No notifications</div>
               ) : (
@@ -283,11 +291,9 @@ export function BureauShell() {
                 ))
               )}
             </div>
-            <div className="px-4 py-2 border-t border-subtle flex items-center justify-between">
-              <span className="text-[10px] text-ttertiary font-mono">Auto-refresh every 10s</span>
-              {notifications.length > 0 && (
-                <button onClick={() => setBureauView("dashboard")} className="text-[10px] text-tsecondary hover:text-pearl uppercase tracking-wider">View all</button>
-              )}
+            <div className="px-4 py-2 border-t border-subtle flex items-center justify-between shrink-0">
+              <span className="text-[10px] text-ttertiary font-mono">Auto-refresh every 10s · {notifications.length} total</span>
+              <button onClick={() => { setNotifOpen(false); window.open("/portal/notifications", "_blank"); }} className="text-[10px] text-tsecondary hover:text-pearl uppercase tracking-wider">View all</button>
             </div>
           </div>
         )}
@@ -305,23 +311,39 @@ export function BureauShell() {
 
 // ============ SUPPORT MODAL ============
 function SupportModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { user } = useApp();
   const [topic, setTopic] = React.useState("");
   const [message, setMessage] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
+  const [ticketRef, setTicketRef] = React.useState("");
 
   const submit = async () => {
     if (!topic || !message) { toast("Topic and message are required", "error"); return; }
     setSending(true);
-    // Simulate support ticket submission
-    await new Promise((r) => setTimeout(r, 800));
-    setSending(false);
-    setSent(true);
-    toast("Support ticket created — reference #KB-" + Date.now().toString().slice(-6), "success");
+    try {
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, email, message, userId: user?.id || "user_admin" }),
+      });
+      const d = await res.json();
+      setSending(false);
+      if (res.ok || res.status === 201) {
+        setTicketRef(d.ticketRef);
+        setSent(true);
+        toast(d.message || `Support ticket ${d.ticketRef} created`, "success");
+      } else {
+        toast(d.error || "Failed to create ticket", "error");
+      }
+    } catch (e) {
+      setSending(false);
+      toast("Network error", "error");
+    }
   };
 
-  const reset = () => { setTopic(""); setMessage(""); setEmail(""); setSent(false); };
+  const reset = () => { setTopic(""); setMessage(""); setEmail(""); setSent(false); setTicketRef(""); };
 
   return (
     <Modal open={open} onClose={() => { onClose(); reset(); }} title="Support" wide>
@@ -331,7 +353,7 @@ function SupportModal({ open, onClose }: { open: boolean; onClose: () => void })
             <span className="material-symbols-outlined text-[48px] text-success">check_circle</span>
             <div className="text-center">
               <h3 className="text-[16px] font-semibold text-tprimary">Support ticket submitted</h3>
-              <p className="text-[12px] text-tsecondary mt-1">Reference #KB-{Date.now().toString().slice(-6)} — our team will respond within 4 business hours.</p>
+              <p className="text-[12px] text-tsecondary mt-1">Reference #{ticketRef} — our team will respond within 4 business hours.</p>
             </div>
             <PearlButton onClick={() => { onClose(); reset(); }}>Close</PearlButton>
           </div>

@@ -13,18 +13,26 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const { notificationId, action } = await req.json();
+  const body = await req.json();
+  const { notificationId, action, userId } = body;
+
   if (action === "mark-read") {
+    if (!notificationId) return NextResponse.json({ error: "notificationId required" }, { status: 400 });
     await db.notification.update({
       where: { id: notificationId },
       data: { readAt: new Date() },
     });
-  } else if (action === "mark-all-read") {
-    const { userId } = await req.json();
-    await db.notification.updateMany({
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "mark-all-read") {
+    if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+    const result = await db.notification.updateMany({
       where: { userId, readAt: null },
       data: { readAt: new Date() },
     });
+    return NextResponse.json({ ok: true, updated: result.count });
   }
-  return NextResponse.json({ ok: true });
+
+  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }
