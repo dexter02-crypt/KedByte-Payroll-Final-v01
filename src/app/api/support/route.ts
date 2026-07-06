@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         type: "support_ticket",
         title: `Support ticket ${ticketRef} created`,
         body: `Topic: ${topic}. ${message.slice(0, 100)}${message.length > 100 ? "…" : ""}. Our team will respond within 4 business hours.`,
-        actionUrl: null,
+        actionUrl: "notifications",
       },
     });
   }
