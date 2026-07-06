@@ -20,6 +20,7 @@ const RtiView = dynamic(() => import("@/components/kedbyte/views/rti").then(m =>
 const PensionsView = dynamic(() => import("@/components/kedbyte/views/pensions").then(m => ({ default: m.PensionsView })), { ssr: false });
 const ReportsView = dynamic(() => import("@/components/kedbyte/views/reports").then(m => ({ default: m.ReportsView })), { ssr: false });
 const SettingsView = dynamic(() => import("@/components/kedbyte/views/settings").then(m => ({ default: m.SettingsView })), { ssr: false });
+const BureauNotificationsView = dynamic(() => import("@/components/kedbyte/views/bureau-notifications").then(m => ({ default: m.BureauNotificationsView })), { ssr: false });
 
 const NAV: { view: BureauView; label: string; icon: string }[] = [
   { view: "dashboard", label: "Dashboard", icon: "dashboard" },
@@ -135,6 +136,7 @@ export function BureauShell() {
       case "pensions": return <PensionsView />;
       case "reports": return <ReportsView />;
       case "settings": return <SettingsView />;
+      case "notifications": return <BureauNotificationsView />;
       default: return <BureauDashboard />;
     }
   };
@@ -293,7 +295,7 @@ export function BureauShell() {
             </div>
             <div className="px-4 py-2 border-t border-subtle flex items-center justify-between shrink-0">
               <span className="text-[10px] text-ttertiary font-mono">Auto-refresh every 10s · {notifications.length} total</span>
-              <button onClick={() => { setNotifOpen(false); window.open("/portal/notifications", "_blank"); }} className="text-[10px] text-tsecondary hover:text-pearl uppercase tracking-wider">View all</button>
+              <button onClick={() => { setNotifOpen(false); setBureauView("notifications"); }} className="text-[10px] text-tsecondary hover:text-pearl uppercase tracking-wider">View all</button>
             </div>
           </div>
         )}

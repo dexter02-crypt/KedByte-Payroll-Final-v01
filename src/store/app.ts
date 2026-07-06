@@ -21,7 +21,8 @@ export type BureauView =
   | "rti_errors"
   | "pensions"
   | "reports"
-  | "settings";
+  | "settings"
+  | "notifications";
 
 export type PortalView =
   | "dashboard"
