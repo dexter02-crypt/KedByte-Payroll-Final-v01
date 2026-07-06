@@ -52,3 +52,16 @@ prompt
 server.log
 # Skills directory
 /skills/.env
+
+# Dev-only folders (not part of the app)
+skills/
+agent-ctx/
+tool-results/
+upload/
+download/
+.zscripts/
+*.log
+phase*-audit.mjs
+keep-alive.sh
+watchdog.sh
+watchdog.log
