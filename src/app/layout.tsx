@@ -22,9 +22,9 @@ export const metadata: Metadata = {
   description:
     "Multi-tenant UK payroll bureau platform with HMRC RTI compliance. Bureau Command Center + Employee Self-Service Portal.",
   icons: {
-    icon: "/logo.svg",
-    shortcut: "/logo.svg",
-    apple: "/logo.svg",
+    icon: "/logo.svg?v=2",
+    shortcut: "/logo.svg?v=2",
+    apple: "/logo.svg?v=2",
   },
   applicationName: "Kedbyte Payroll",
   authors: [{ name: "Kedbyte Payroll" }],
@@ -39,8 +39,17 @@ export default function RootLayout({
       <head>
         <link
           rel="icon"
-          href="/logo.svg"
+          href="/logo.svg?v=2"
           type="image/svg+xml"
+        />
+        <link
+          rel="shortcut icon"
+          href="/logo.svg?v=2"
+          type="image/svg+xml"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="/logo.svg?v=2"
         />
         <link
           rel="stylesheet"
