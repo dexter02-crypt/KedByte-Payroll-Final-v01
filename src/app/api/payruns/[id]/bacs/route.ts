@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-<<<<<<< HEAD
 import { db } from "@/lib/db";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,25 +23,4 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   lines.push("EOF1A" + String(entries.length + 1).padStart(6, "0") + String(totalPence).padStart(12, "0").padEnd(74));
   const content = lines.join("\r\n") + "\r\n";
   return new NextResponse(content, { headers: { "Content-Type": "text/plain", "Content-Disposition": `attachment; filename="bacs-${slug}-${payRun.taxYear}-${period}.std18.txt"` } });
-=======
-import { runExport, bacsSpec } from "@/server/exports";
-
-// GET /api/payruns/[id]/bacs — E7 BACS Standard-18 file
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const ctx = { tenantId: "bureau_kedbyte", userId: "user_admin" };
-  try {
-    const spec = await bacsSpec(id, ctx.tenantId);
-    const r = await runExport(spec, ctx);
-    if (r.mode === "direct") {
-      return new NextResponse(r.body, {
-        headers: { "Content-Type": r.contentType, "Content-Disposition": `attachment; filename="${r.filename}"` },
-      });
-    }
-    return NextResponse.json({ jobId: r.jobId }, { status: 202 });
-  } catch (e: any) {
-    if (e.message?.startsWith("409:")) return NextResponse.json({ error: e.message.slice(4) }, { status: 409 });
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
 }

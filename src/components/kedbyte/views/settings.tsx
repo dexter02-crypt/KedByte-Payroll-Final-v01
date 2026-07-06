@@ -1024,14 +1024,10 @@ function UsersTab() {
               <TableCell><StatusChip status={u.status} /></TableCell>
               <TableCell mono>{u.lastLogin ? fmtDateTime(u.lastLogin) : "—"}</TableCell>
               <TableCell>
-<<<<<<< HEAD
                 <div className="flex items-center gap-1">
                   <button onClick={() => setEditingUser(u)} className="p-1 text-ttertiary hover:text-pearl transition-colors" title="Edit"><span className="material-symbols-outlined text-[16px]">edit</span></button>
                   <button onClick={() => toast("MFA reset link sent", "info")} className="p-1 text-ttertiary hover:text-pearl transition-colors" title="Reset MFA"><span className="material-symbols-outlined text-[16px]">lock_reset</span></button>
                 </div>
-=======
-                <UserActions user={u} onChanged={load} />
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
               </TableCell>
             </TableRow>
           );
@@ -1134,67 +1130,6 @@ function UserEditForm({ user, onSaved }: { user: any; onSaved: () => void }) {
   );
 }
 
-<<<<<<< HEAD
-=======
-// ============ USER ACTIONS (Send reset, Reset MFA, Unlock, Edit) ============
-function UserActions({ user, onChanged }: { user: any; onChanged: () => void }) {
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const action = async (endpoint: string, label: string) => {
-    setOpen(false);
-    const res = await fetch(`/api/settings/users/${user.id}/${endpoint}`, { method: "POST" });
-    const d = await res.json();
-    toast(d.message || `${label} done`, res.ok ? "success" : "error");
-    onChanged();
-  };
-
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(!open)} className="p-1 text-ttertiary hover:text-pearl transition-colors" title="Actions">
-        <span className="material-symbols-outlined text-[18px]">more_vert</span>
-      </button>
-      {open && (
-        <div className="absolute right-0 top-8 z-50 w-52 bg-surface border border-subtle shadow-2xl">
-          <button onClick={() => { setOpen(false); onChanged(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-tprimary hover:bg-surface-high transition-colors text-left">
-            <span className="material-symbols-outlined text-[16px] text-tsecondary">edit</span>
-            Edit role / status
-          </button>
-          <button onClick={() => action("send-reset", "Reset link sent")} className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-tprimary hover:bg-surface-high transition-colors text-left border-t border-subtle">
-            <span className="material-symbols-outlined text-[16px] text-tsecondary">mail_lock</span>
-            Send reset link
-          </button>
-          {user.mfaEnabled && (
-            <button onClick={() => action("mfa-reset", "MFA reset")} className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-tprimary hover:bg-surface-high transition-colors text-left border-t border-subtle">
-              <span className="material-symbols-outlined text-[16px] text-tsecondary">lock_reset</span>
-              Reset MFA
-            </button>
-          )}
-          {user.status === "locked" && (
-            <button onClick={() => action("unlock", "Account unlocked")} className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-tprimary hover:bg-surface-high transition-colors text-left border-t border-subtle">
-              <span className="material-symbols-outlined text-[16px] text-tsecondary">lock_open</span>
-              Unlock account
-            </button>
-          )}
-          <button onClick={() => { setOpen(false); toast("User disabled · sessions revoked", "info"); onChanged(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-error hover:bg-surface-high transition-colors text-left border-t border-subtle">
-            <span className="material-symbols-outlined text-[16px]">block</span>
-            Disable user
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
 // ============================================================
 // TAB 6: SECURITY
 // ============================================================
@@ -1385,16 +1320,6 @@ function ComplianceTab({ companyId, setCompanyId }: { companyId: string | null; 
           { key: "payroll", label: "Payroll Records Retention", value: `${data.retention.payrollYears} years`, mono: true },
           { key: "statutory", label: "Statutory Minimum", value: `${data.retention.statutoryMinimumYears} years`, mono: true },
         ]} />
-<<<<<<< HEAD
-=======
-        <div className="mt-4 pt-3 border-t border-subtle flex items-center justify-between">
-          <div>
-            <div className="text-[13px] text-tprimary font-medium">Audit Ledger Export</div>
-            <div className="text-[11px] text-ttertiary">The dispute-resolution artifact — hash-chained, append-only</div>
-          </div>
-          <ExportButton href="/api/audit/export" label="Export Ledger" icon="receipt_long" filename={`audit-ledger-${new Date().toISOString().slice(0, 10)}.csv`} />
-        </div>
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
       </SectionCard>
 
       <SectionCard title="GDPR Erasure Requests" description="Anonymise job runs when retention expires">
@@ -1499,7 +1424,6 @@ function NotificationsTab() {
 // TAB 9: SYSTEM
 // ============================================================
 function SystemTab() {
-<<<<<<< HEAD
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [exporting, setExporting] = React.useState(false);
@@ -1509,67 +1433,16 @@ function SystemTab() {
     fetch("/api/settings/system")
       .then((r) => r.json())
       .then((d) => setData(d))
-=======
-  const { user } = useApp();
-  const [data, setData] = React.useState<any>(null);
-  const [jobs, setJobs] = React.useState<any[]>([]);
-  const [recentExports, setRecentExports] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [exportStatus, setExportStatus] = React.useState<{ format: string; jobId: string; state: "idle" | "preparing" | "ready" | "failed" } | null>(null);
-  const [bankSyncing, setBankSyncing] = React.useState(false);
-  const [dpsFetching, setDpsFetching] = React.useState(false);
-
-  const load = () => {
-    setLoading(true);
-    Promise.all([
-      fetch("/api/settings/system").then((r) => r.json()),
-      fetch("/api/settings/system/jobs").then((r) => r.json()),
-      fetch("/api/settings/system/export").then((r) => r.json()),
-    ])
-      .then(([sys, jobData, exports]) => {
-        setData(sys);
-        setJobs(jobData.jobs || []);
-        setRecentExports(exports.exports || []);
-      })
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
       .catch(() => toast("Failed to load system info", "error"))
       .finally(() => setLoading(false));
   };
 
-<<<<<<< HEAD
   React.useEffect(() => { load(); }, []);
-=======
-  React.useEffect(() => {
-    load();
-    // Poll for export status if preparing
-    const interval = setInterval(() => {
-      setExportStatus((prev) => {
-        if (prev && prev.state === "preparing" && prev.jobId) {
-          fetch(`/api/settings/system/export?status=job&jobId=${prev.jobId}`)
-            .then((r) => r.json())
-            .then((d) => {
-              if (d.status === "completed") {
-                setExportStatus({ format: prev.format, jobId: prev.jobId, state: "ready" });
-                load();
-                toast("Export ready — click to download", "success");
-              } else if (d.status === "failed") {
-                setExportStatus({ format: prev.format, jobId: prev.jobId, state: "failed" });
-                toast("Export failed", "error");
-              }
-            });
-        }
-        return prev;
-      });
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
 
   if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
   if (!data) return null;
 
   const doExport = async (format: string) => {
-<<<<<<< HEAD
     setExporting(true);
     const res = await fetch("/api/settings/system/export", {
       method: "POST",
@@ -1579,60 +1452,6 @@ function SystemTab() {
     const d = await res.json();
     setExporting(false);
     toast(d.message || "Export queued", "success");
-=======
-    const res = await fetch("/api/settings/system/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ format, actorId: user?.id }),
-    });
-    const d = await res.json();
-    if (res.status === 429) {
-      toast(d.error, "error");
-      return;
-    }
-    if (d.jobId) {
-      setExportStatus({ format, jobId: d.jobId, state: "preparing" });
-      toast(d.message, "info");
-    }
-  };
-
-  const downloadExport = (jobId: string) => {
-    window.open(`/api/settings/system/export/${jobId}/download?uid=${user?.id}`, "_blank");
-    toast("Download started", "success");
-  };
-
-  const retryFailed = async (queue: string) => {
-    const res = await fetch(`/api/settings/system/jobs/${queue}/retry-failed`, { method: "POST" });
-    const d = await res.json();
-    toast(d.message || "Retry queued", "info");
-    setTimeout(load, 1000);
-  };
-
-  const syncBankHolidays = async () => {
-    setBankSyncing(true);
-    const res = await fetch("/api/bank-holidays/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actorId: user?.id }),
-    });
-    const d = await res.json();
-    setBankSyncing(false);
-    toast(d.message, "info");
-    setTimeout(load, 3000);
-  };
-
-  const fetchDps = async () => {
-    setDpsFetching(true);
-    const res = await fetch("/api/dps/fetch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actorId: user?.id }),
-    });
-    const d = await res.json();
-    setDpsFetching(false);
-    toast(d.message, "info");
-    setTimeout(load, 3000);
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
   };
 
   return (
@@ -1648,7 +1467,6 @@ function SystemTab() {
         ]} />
       </SectionCard>
 
-<<<<<<< HEAD
       <SectionCard title="Job Queue Health" description="Failed jobs > 0 trigger ops alert">
         <DataTable columns={[{ label: "Queue" }, { label: "Waiting" }, { label: "Failed" }, { label: "Last Run" }]}>
           {data.jobs.map((j: any) => (
@@ -1664,51 +1482,6 @@ function SystemTab() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <SectionCard title="Bank Holiday Sync" actions={<GhostButton onClick={() => toast("Sync job queued", "info")}>Sync Now</GhostButton>}>
-=======
-      {/* Job Queue Health — all 15 queues with Retry-failed buttons */}
-      <SectionCard title="Job Queue Health" description="All 15 async queues · failed jobs > 0 trigger ops alert · Retry to re-enqueue">
-        <div className="border border-subtle overflow-x-auto scroll-thin">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-subtle bg-surface-low">
-                <th className="text-left px-4 py-3 label-caps text-tsecondary font-semibold">Queue</th>
-                <th className="text-left px-4 py-3 label-caps text-tsecondary font-semibold">Waiting</th>
-                <th className="text-left px-4 py-3 label-caps text-tsecondary font-semibold">Failed</th>
-                <th className="text-left px-4 py-3 label-caps text-tsecondary font-semibold">Total</th>
-                <th className="text-left px-4 py-3 label-caps text-tsecondary font-semibold">Last Run</th>
-                <th className="text-right px-4 py-3 label-caps text-tsecondary font-semibold"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((j: any) => (
-                <tr key={j.queue} className="border-b border-subtle last:border-b-0 hover:bg-surface-high transition-colors">
-                  <td className="px-4 py-3 text-[13px] text-tprimary font-mono">{j.queue}</td>
-                  <td className="px-4 py-3 text-[13px] font-mono">
-                    {j.waiting > 0 ? <span className="text-warning">{j.waiting}</span> : <span className="text-ttertiary">0</span>}
-                  </td>
-                  <td className="px-4 py-3 text-[13px] font-mono">
-                    {j.failed > 0 ? <span className="text-error">{j.failed}</span> : <span className="text-success">0</span>}
-                  </td>
-                  <td className="px-4 py-3 text-[13px] font-mono text-tsecondary">{j.total}</td>
-                  <td className="px-4 py-3 text-[12px] text-tsecondary font-mono">{j.lastRun ? fmtDateTime(j.lastRun) : "—"}</td>
-                  <td className="px-4 py-3 text-right">
-                    {j.failed > 0 ? (
-                      <button onClick={() => retryFailed(j.queue)} className="text-[11px] text-error hover:text-pearl uppercase tracking-wider font-medium">Retry failed</button>
-                    ) : (
-                      <span className="text-[11px] text-ttertiary">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Bank Holiday Sync */}
-        <SectionCard title="Bank Holiday Sync" actions={<GhostButton onClick={syncBankHolidays} disabled={bankSyncing}>{bankSyncing ? "Syncing…" : "Sync Now"}</GhostButton>}>
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
           <KeyValueTable rows={[
             { key: "last", label: "Last Run", value: fmtDateTime(data.bankHolidaySync.lastRunAt), mono: true },
             { key: "next", label: "Next Scheduled", value: fmtDateTime(data.bankHolidaySync.nextRunAt), mono: true },
@@ -1716,7 +1489,6 @@ function SystemTab() {
             { key: "source", label: "Source", value: data.bankHolidaySync.source },
           ]} />
         </SectionCard>
-<<<<<<< HEAD
         <SectionCard title="DPS Notice Fetch" actions={<GhostButton onClick={() => toast("DPS fetch queued", "info")}>Fetch Now</GhostButton>}>
           <KeyValueTable rows={[
             { key: "last", label: "Last Run", value: fmtDateTime(data.dpsFetch.lastRunAt), mono: true },
@@ -1740,104 +1512,6 @@ function SystemTab() {
           {data.dataExport.lastExportAt && <span className="text-[12px] text-ttertiary font-mono">Last: {fmtDateTime(data.dataExport.lastExportAt)}</span>}
         </div>
       </SectionCard>
-=======
-
-        {/* DPS Notice Fetch — with notices-applied line */}
-        <SectionCard title="DPS Notice Fetch" actions={<GhostButton onClick={fetchDps} disabled={dpsFetching}>{dpsFetching ? "Fetching…" : "Fetch Now"}</GhostButton>}>
-          <div className="flex flex-col gap-3">
-            <div className="border border-subtle">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-subtle">
-                <span className="text-[13px] text-tsecondary">Last Run</span>
-                <span className="text-[13px] text-tprimary font-mono">{fmtDateTime(data.dpsFetch.lastRunAt)}</span>
-              </div>
-              {/* Notices applied last run — operator value line */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-subtle bg-surface-low">
-                <span className="text-[13px] text-tsecondary flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[14px] text-success">check_circle</span>
-                  Notices applied last run
-                </span>
-                <span className="text-[13px] font-mono text-success">6 applied · 0 exceptions</span>
-              </div>
-              {/* High-water marks — paging cursors, not pending counts */}
-              {Object.entries(data.dpsFetch.highWaterMarks).map(([k, v]: [string, any], i: number) => (
-                <div key={k} className={`flex items-center justify-between px-4 py-3 ${i < Object.keys(data.dpsFetch.highWaterMarks).length - 1 ? "border-b border-subtle" : ""}`}>
-                  <span className="text-[13px] text-tsecondary">{k} cursor <span className="text-[10px] text-ttertiary">(paging mark)</span></span>
-                  <span className="text-[13px] text-tprimary font-mono">{String(v)}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-[11px] text-ttertiary">High-water marks are HMRC paging cursors — the last notice index fetched per type. They only ever increase; they are health indicators, not counts of pending items.</p>
-          </div>
-        </SectionCard>
-      </div>
-
-      {/* Data Export — with inline status swap */}
-      <SectionCard title="Data Export" description="Rate-limited 1/day · decrypted fields excluded (masked) · audit logged · 7-day expiry">
-        {exportStatus?.state === "preparing" ? (
-          <div className="flex items-center gap-3 px-4 py-3 border border-subtle bg-surface-low">
-            <span className="material-symbols-outlined text-[18px] text-warning animate-spin">progress_activity</span>
-            <span className="text-[13px] text-tsecondary">Preparing {exportStatus.format} export…</span>
-            <span className="text-[11px] text-ttertiary font-mono ml-auto">job: {exportStatus.jobId.slice(0, 16)}…</span>
-          </div>
-        ) : exportStatus?.state === "ready" ? (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-4 py-3 border border-subtle bg-surface-low">
-              <span className="material-symbols-outlined text-[18px] text-success">check_circle</span>
-              <span className="text-[13px] text-tprimary">Export ready</span>
-            </div>
-            <PearlButton onClick={() => downloadExport(exportStatus.jobId)}>
-              <span className="material-symbols-outlined text-[14px] align-middle mr-1">download</span>
-              Download
-            </PearlButton>
-            <GhostButton onClick={() => setExportStatus(null)}>Dismiss</GhostButton>
-          </div>
-        ) : exportStatus?.state === "failed" ? (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-4 py-3 border border-subtle bg-surface-low">
-              <span className="material-symbols-outlined text-[18px] text-error">error</span>
-              <span className="text-[13px] text-error">Export failed</span>
-            </div>
-            <GhostButton onClick={() => setExportStatus(null)}>Dismiss</GhostButton>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <GhostButton onClick={() => doExport("csv-bundle")}>
-              <span className="material-symbols-outlined text-[14px] align-middle mr-1">csv</span>
-              CSV Bundle
-            </GhostButton>
-            <GhostButton onClick={() => doExport("json")}>
-              <span className="material-symbols-outlined text-[14px] align-middle mr-1">code</span>
-              JSON
-            </GhostButton>
-            {data.dataExport.lastExportAt && <span className="text-[12px] text-ttertiary font-mono">Last: {fmtDateTime(data.dataExport.lastExportAt)}</span>}
-          </div>
-        )}
-      </SectionCard>
-
-      {/* Recent Exports list */}
-      {recentExports.length > 0 && (
-        <SectionCard title="Recent Exports" description="Exports expire after 7 days · click to re-download">
-          <DataTable columns={[{ label: "Format" }, { label: "File" }, { label: "Rows" }, { label: "Size" }, { label: "Completed" }, { label: "Expires" }, { label: "" }]}>
-            {recentExports.map((ex: any) => (
-              <TableRow key={ex.id}>
-                <TableCell mono>{ex.format}</TableCell>
-                <TableCell mono className="text-[12px]">{ex.fileName}</TableCell>
-                <TableCell mono>{ex.rowCount}</TableCell>
-                <TableCell mono>{ex.sizeBytes ? `${(ex.sizeBytes / 1024).toFixed(1)} KB` : "—"}</TableCell>
-                <TableCell mono>{ex.completedAt ? fmtDateTime(ex.completedAt) : "—"}</TableCell>
-                <TableCell mono>{ex.expiresAt ? fmtDate(ex.expiresAt) : "—"}</TableCell>
-                <TableCell>
-                  <button onClick={() => downloadExport(ex.id)} className="text-[11px] text-tsecondary hover:text-pearl uppercase tracking-wider font-medium flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">download</span>
-                    Download
-                  </button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </DataTable>
-        </SectionCard>
-      )}
->>>>>>> 0775c07bf34355cd5dbbfdd7e77e9a993af3a236
     </div>
   );
 }
