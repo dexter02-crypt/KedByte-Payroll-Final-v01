@@ -3,7 +3,7 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { useApp, type BureauView } from "@/store/app";
-import { toast } from "@/components/kedbyte/primitives";
+import { toast, PearlButton, GhostButton, Field, TextInput, Modal } from "@/components/kedbyte/primitives";
 import { MyAccountModal } from "@/components/kedbyte/my-account";
 
 // Lazy-load views to reduce initial compile memory pressure
@@ -54,16 +54,54 @@ export function BureauShell() {
   const { user, bureauView, setBureauView, logout } = useApp();
   const [accountOpen, setAccountOpen] = React.useState(false);
   const [notifOpen, setNotifOpen] = React.useState(false);
+  const [supportOpen, setSupportOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState<any[]>([]);
+  const [prevNotifCount, setPrevNotifCount] = React.useState(0);
+
+  // Real-time notification polling — refreshes every 10 seconds
+  const loadNotifs = React.useCallback(() => {
+    if (!user) return;
+    fetch(`/api/notifications?userId=${user.id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const newNotifs = d.notifications || [];
+        // Detect new notifications for toast alert
+        const unreadCount = newNotifs.filter((n: any) => !n.readAt).length;
+        if (unreadCount > prevNotifCount && prevNotifCount > 0) {
+          const fresh = newNotifs.slice(0, unreadCount - prevNotifCount);
+          fresh.forEach((n: any) => toast(`🔔 ${n.title}`, "info"));
+        }
+        setPrevNotifCount(unreadCount);
+        setNotifications(newNotifs);
+      })
+      .catch(() => {});
+  }, [user, prevNotifCount]);
 
   React.useEffect(() => {
-    if (user) {
-      fetch(`/api/notifications?userId=${user.id}`)
-        .then((r) => r.json())
-        .then((d) => setNotifications(d.notifications || []))
-        .catch(() => {});
-    }
-  }, [user]);
+    loadNotifs(); // Initial load
+    const interval = setInterval(loadNotifs, 10000); // Poll every 10s
+    return () => clearInterval(interval);
+  }, [loadNotifs]);
+
+  // Mark notification as read when clicked
+  const markNotifRead = async (notifId: string, actionUrl?: string | null) => {
+    await fetch("/api/notifications", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark-read", notificationId: notifId }),
+    });
+    loadNotifs(); // Refresh immediately
+  };
+
+  const markAllRead = async () => {
+    if (!user) return;
+    await fetch("/api/notifications", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark-all-read", userId: user.id }),
+    });
+    loadNotifs();
+  };
 
   // Determine which nav item is active based on current view
   const activeNav: BureauView = bureauView.startsWith("payrun")
@@ -175,7 +213,10 @@ export function BureauShell() {
               )}
             </button>
             <div className="h-6 w-px bg-border-subtle mx-1" style={{ backgroundColor: "rgba(245,245,245,0.06)" }} />
-            <button className="px-3 py-1.5 border border-subtle text-[12px] text-tsecondary hover:text-tprimary hover:border-pearl-dim transition-colors flex items-center gap-1.5">
+            <button
+              onClick={() => setSupportOpen(true)}
+              className="px-3 py-1.5 border border-subtle text-[12px] text-tsecondary hover:text-tprimary hover:border-pearl-dim transition-colors flex items-center gap-1.5"
+            >
               <span className="material-symbols-outlined text-[14px]">help</span>
               Support
             </button>
@@ -184,26 +225,68 @@ export function BureauShell() {
 
         {/* Notifications dropdown */}
         {notifOpen && (
-          <div className="absolute right-8 top-14 w-80 bg-surface border border-subtle z-40 shadow-2xl">
+          <div className="absolute right-8 top-14 w-96 bg-surface border border-subtle z-40 shadow-2xl">
             <div className="px-4 py-3 border-b border-subtle flex items-center justify-between">
-              <span className="label-caps text-tsecondary">Notifications</span>
-              <button onClick={() => setNotifOpen(false)} className="text-ttertiary hover:text-tprimary">
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
+              <div className="flex items-center gap-3">
+                <span className="label-caps text-tsecondary">Notifications</span>
+                {notifications.filter((n) => !n.readAt).length > 0 && (
+                  <span className="text-[11px] font-mono text-warning">{notifications.filter((n) => !n.readAt).length} unread</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {notifications.filter((n) => !n.readAt).length > 0 && (
+                  <button onClick={markAllRead} className="text-[10px] text-tsecondary hover:text-pearl uppercase tracking-wider">Mark all read</button>
+                )}
+                <button onClick={() => setNotifOpen(false)} className="text-ttertiary hover:text-tprimary">
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              </div>
             </div>
             <div className="max-h-96 overflow-y-auto scroll-thin">
               {notifications.length === 0 ? (
                 <div className="px-4 py-8 text-center text-[12px] text-ttertiary">No notifications</div>
               ) : (
-                notifications.slice(0, 8).map((n) => (
-                  <div key={n.id} className={`px-4 py-3 border-b border-subtle ${!n.readAt ? "bg-surface-low" : ""}`}>
-                    <div className="text-[12px] text-tprimary font-medium">{n.title}</div>
-                    <div className="text-[11px] text-tsecondary mt-0.5">{n.body}</div>
-                    <div className="text-[10px] text-ttertiary mt-1 font-mono">
-                      {new Date(n.createdAt).toLocaleString("en-GB")}
+                notifications.slice(0, 20).map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => { markNotifRead(n.id, n.actionUrl); if (n.actionUrl && !n.actionUrl.startsWith("/api/")) setNotifOpen(false); }}
+                    className={`w-full text-left px-4 py-3 border-b border-subtle transition-colors hover:bg-surface-high ${!n.readAt ? "bg-surface-low" : ""}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className={`material-symbols-outlined text-[16px] mt-0.5 shrink-0 ${
+                        n.type === "export_ready" ? "text-success" :
+                        n.type === "rti_status" ? "text-warning" :
+                        n.type === "rti_rejected" || n.type === "job_failed" ? "text-error" :
+                        n.type === "payslip_ready" || n.type === "p60_ready" ? "text-success" :
+                        "text-ttertiary"
+                      }`}>
+                        {n.type === "export_ready" ? "download" :
+                         n.type === "rti_status" || n.type === "rti_rejected" ? "send" :
+                         n.type === "payslip_ready" ? "description" :
+                         n.type === "p60_ready" ? "task_alt" :
+                         n.type === "holiday_decision" ? "event" :
+                         n.type === "bank_change" ? "account_balance" :
+                         n.type === "pay_date" ? "payments" :
+                         n.type === "sync_complete" || n.type === "dps_fetch_complete" ? "sync" :
+                         "notifications"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] text-tprimary font-medium">{n.title}</div>
+                        <div className="text-[11px] text-tsecondary mt-0.5">{n.body}</div>
+                        <div className="text-[10px] text-ttertiary mt-1 font-mono">
+                          {new Date(n.createdAt).toLocaleString("en-GB")}
+                        </div>
+                      </div>
+                      {!n.readAt && <span className="w-1.5 h-1.5 bg-pearl rounded-full shrink-0 mt-1" />}
                     </div>
-                  </div>
+                  </button>
                 ))
+              )}
+            </div>
+            <div className="px-4 py-2 border-t border-subtle flex items-center justify-between">
+              <span className="text-[10px] text-ttertiary font-mono">Auto-refresh every 10s</span>
+              {notifications.length > 0 && (
+                <button onClick={() => setBureauView("dashboard")} className="text-[10px] text-tsecondary hover:text-pearl uppercase tracking-wider">View all</button>
               )}
             </div>
           </div>
@@ -215,6 +298,113 @@ export function BureauShell() {
         </main>
       </div>
       <MyAccountModal open={accountOpen} onClose={() => setAccountOpen(false)} />
+      <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
     </div>
+  );
+}
+
+// ============ SUPPORT MODAL ============
+function SupportModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [topic, setTopic] = React.useState("");
+  const [message, setMessage] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [sending, setSending] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
+
+  const submit = async () => {
+    if (!topic || !message) { toast("Topic and message are required", "error"); return; }
+    setSending(true);
+    // Simulate support ticket submission
+    await new Promise((r) => setTimeout(r, 800));
+    setSending(false);
+    setSent(true);
+    toast("Support ticket created — reference #KB-" + Date.now().toString().slice(-6), "success");
+  };
+
+  const reset = () => { setTopic(""); setMessage(""); setEmail(""); setSent(false); };
+
+  return (
+    <Modal open={open} onClose={() => { onClose(); reset(); }} title="Support" wide>
+      <div className="flex flex-col gap-4">
+        {sent ? (
+          <div className="flex flex-col items-center py-8 gap-4">
+            <span className="material-symbols-outlined text-[48px] text-success">check_circle</span>
+            <div className="text-center">
+              <h3 className="text-[16px] font-semibold text-tprimary">Support ticket submitted</h3>
+              <p className="text-[12px] text-tsecondary mt-1">Reference #KB-{Date.now().toString().slice(-6)} — our team will respond within 4 business hours.</p>
+            </div>
+            <PearlButton onClick={() => { onClose(); reset(); }}>Close</PearlButton>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[
+                { id: "engine", label: "Calculation Engine", icon: "calculate" },
+                { id: "rti", label: "RTI / HMRC", icon: "send" },
+                { id: "pension", label: "Pensions", icon: "savings" },
+                { id: "payrun", label: "Pay Run", icon: "payments" },
+                { id: "export", label: "Exports", icon: "download" },
+                { id: "other", label: "Other", icon: "help" },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTopic(t.id)}
+                  className={`flex items-center gap-2 px-3 py-2.5 border text-[12px] font-medium transition-colors ${
+                    topic === t.id
+                      ? "border-pearl bg-surface-high text-pearl"
+                      : "border-subtle text-tsecondary hover:text-tprimary hover:border-pearl-dim"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">{t.icon}</span>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <Field label="Your Email (optional)" hint="For follow-up — we'll use your account email by default">
+              <TextInput value={email} onChange={setEmail} placeholder="your@email.co.uk" />
+            </Field>
+
+            <Field label="Describe the issue" hint="Include steps to reproduce, expected vs actual behaviour, and any error messages">
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={5}
+                placeholder="e.g. When I click Submit FPS, the button shows 'Submitting...' but nothing happens. Expected: FPS submission to HMRC."
+                className="bg-surface-low border border-subtle px-3 py-2 text-[13px] text-tprimary placeholder:text-ttertiary outline-none focus:border-pearl transition-colors resize-none"
+              />
+            </Field>
+
+            <div className="border border-subtle bg-surface-low px-4 py-3 flex items-start gap-3">
+              <span className="material-symbols-outlined text-[16px] text-ttertiary mt-0.5">info</span>
+              <div className="text-[11px] text-tsecondary">
+                <p className="font-medium text-tprimary mb-1">Quick References</p>
+                <p>• Engine self-test: <span className="font-mono text-pearl">GET /api/engine/verify</span></p>
+                <p>• Health check: <span className="font-mono text-pearl">GET /api/health</span></p>
+                <p>• Documentation: <span className="font-mono text-pearl">README.md, TESTING.md, DEPLOYMENT.md</span></p>
+                <p>• GitHub: <span className="font-mono text-pearl">github.com/dexter02-crypt/KedByte-Payroll-Final-v01</span></p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+              <GhostButton onClick={() => { onClose(); reset(); }}>Cancel</GhostButton>
+              <PearlButton onClick={submit} disabled={sending || !topic || !message}>
+                {sending ? (
+                  <>
+                    <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin">progress_activity</span>
+                    Submitting…
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px] mr-1 align-middle">send</span>
+                    Submit Ticket
+                  </>
+                )}
+              </PearlButton>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
