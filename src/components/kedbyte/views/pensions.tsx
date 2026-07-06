@@ -156,17 +156,48 @@ export function PensionsView() {
     }
   };
 
+  const [assessing, setAssessing] = React.useState(false);
+
   const assessNow = async () => {
+    setAssessing(true);
     toast("Assessment queued · " + (selectedCompany ? "1 company" : "all companies"), "info");
-    // Could POST /api/pensions {action:"assess"} but per API it just returns jobId
     try {
-      await fetch("/api/pensions", {
+      const res = await fetch("/api/pensions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "assess" }),
       });
+      const d = await res.json();
+      if (d.jobId) {
+        // Poll for completion
+        for (let i = 0; i < 15; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
+          if (statusRes.ok) {
+            const sd = await statusRes.json();
+            if (sd.status === "completed") {
+              toast("Assessment complete — statuses updated", "success");
+              setAssessing(false);
+              load();
+              return;
+            }
+            if (sd.status === "failed") {
+              toast("Assessment failed", "error");
+              setAssessing(false);
+              return;
+            }
+          }
+        }
+        toast("Assessment still running — check back shortly", "info");
+        setAssessing(false);
+      } else {
+        toast("Assessment completed", "success");
+        setAssessing(false);
+        load();
+      }
     } catch {
-      /* silent */
+      toast("Assessment failed", "error");
+      setAssessing(false);
     }
   };
 
@@ -186,9 +217,18 @@ export function PensionsView() {
             label="Export Report"
             icon="file_export"
           />
-          <PearlButton onClick={assessNow}>
-            <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">bolt</span>
-            Assess Now
+          <PearlButton onClick={assessNow} disabled={assessing}>
+            {assessing ? (
+              <>
+                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin">progress_activity</span>
+                Assessing…
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">bolt</span>
+                Assess Now
+              </>
+            )}
           </PearlButton>
         </div>
       </div>
