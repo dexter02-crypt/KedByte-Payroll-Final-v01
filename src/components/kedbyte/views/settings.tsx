@@ -626,7 +626,16 @@ function PensionTab({ companyId, setCompanyId }: { companyId: string | null; set
 
   React.useEffect(() => { load(); }, [load]);
 
-  if (!companyId) return <EmptyState icon="savings" title="Select a company to view its pension scheme configuration." />;
+  if (!companyId) return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <CompanySelector companyId={companyId} onChange={setCompanyId} />
+        </div>
+      </div>
+      <EmptyState icon="savings" title="Select a company to view its pension scheme configuration." />
+    </div>
+  );
   if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
   if (!data) return null;
 
@@ -841,7 +850,16 @@ function BankTab({ companyId, setCompanyId }: { companyId: string | null; setCom
 
   React.useEffect(() => { load(); }, [load]);
 
-  if (!companyId) return <EmptyState icon="account_balance" title="Select a company to view its bank and BACS configuration." />;
+  if (!companyId) return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <CompanySelector companyId={companyId} onChange={setCompanyId} />
+        </div>
+      </div>
+      <EmptyState icon="account_balance" title="Select a company to view its bank and BACS configuration." />
+    </div>
+  );
   if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
   if (!data) return null;
 
