@@ -11,6 +11,7 @@ import {
   toast,
 } from "@/components/kedbyte/primitives";
 import { cn } from "@/lib/utils";
+import { ExportButton } from "@/components/kedbyte/export-button";
 
 // ============ TYPES ============
 interface Entry {
@@ -372,12 +373,20 @@ export function PayRunSubmission() {
           icon="receipt_long"
           title="BACS File"
           subtitle="Standard-18 payment instruction"
-          desc="Generates the BACS payment file for net pay disbursement to employee bank accounts."
+          desc="Generates the BACS payment file for net pay disbursement to employee bank accounts. Pence amounts, contra balances to total net."
           status={cards.bacs}
           statusLabel={statusLabel(cards.bacs)}
-          actionLabel={actionLabel(cards.bacs, "Download BACS")}
-          onAction={downloadBacs}
-          disabled={false}
+          actionLabel={payRun?.status === "committed" ? "Download BACS" : "Commit run first"}
+          onAction={payRun?.status === "committed" ? downloadBacs : undefined}
+          disabled={payRun?.status !== "committed"}
+          extra={payRun?.status === "committed" && (
+            <ExportButton
+              href={`/api/payruns/${payRun.id}/bacs`}
+              label="Download BACS (std18)"
+              icon="receipt_long"
+              filename={`${payRun.ref}_bacs.std18.txt`}
+            />
+          )}
         />
         <ActionCard
           icon="mail"
@@ -479,6 +488,7 @@ function ActionCard({
   actionLabel,
   onAction,
   disabled,
+  extra,
 }: {
   icon: string;
   title: string;
@@ -487,8 +497,9 @@ function ActionCard({
   status: CardStatus;
   statusLabel: string;
   actionLabel: string;
-  onAction: () => void;
+  onAction?: () => void;
   disabled: boolean;
+  extra?: React.ReactNode;
 }) {
   const isRunning = status === "submitting";
   return (
@@ -506,22 +517,25 @@ function ActionCard({
         <StatusIndicator status={status} label={statusLabel} />
       </div>
       <p className="text-[12px] text-tsecondary leading-relaxed">{desc}</p>
+      {extra && <div className="flex items-center gap-2">{extra}</div>}
       <div className="flex items-center justify-between pt-2 border-t border-subtle">
         <span className="text-[11px] font-mono text-ttertiary uppercase tracking-wider">
           {isRunning ? "Transmitting…" : status === "idle" ? "Not started" : "Complete"}
         </span>
-        <button
-          onClick={onAction}
-          disabled={disabled || isRunning}
-          className={cn(
-            "px-3 py-1.5 border border-subtle text-[12px] font-medium transition-colors flex items-center gap-1.5",
-            "hover:border-pearl-dim hover:text-pearl",
-            "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-subtle disabled:hover:text-tsecondary"
-          )}
-        >
-          {isRunning && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
-          {actionLabel}
-        </button>
+        {onAction && (
+          <button
+            onClick={onAction}
+            disabled={disabled || isRunning}
+            className={cn(
+              "px-3 py-1.5 border border-subtle text-[12px] font-medium transition-colors flex items-center gap-1.5",
+              "hover:border-pearl-dim hover:text-pearl",
+              "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-subtle disabled:hover:text-tsecondary"
+            )}
+          >
+            {isRunning && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
+            {actionLabel}
+          </button>
+        )}
       </div>
     </div>
   );

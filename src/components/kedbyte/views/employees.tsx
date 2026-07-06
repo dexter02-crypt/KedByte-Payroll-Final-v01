@@ -11,8 +11,11 @@ import {
   PearlButton,
   GhostButton,
   Select,
+  Field,
+  Modal,
   toast,
 } from "@/components/kedbyte/primitives";
+import { ExportButton } from "@/components/kedbyte/export-button";
 import { maskNINO } from "@/engine/payroll";
 
 interface Employee {
@@ -64,6 +67,7 @@ export function EmployeesView() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [taxCodeFilter, setTaxCodeFilter] = React.useState("all");
   const [pensionFilter, setPensionFilter] = React.useState("all");
+  const [importOpen, setImportOpen] = React.useState(false);
 
   // Load companies list (for the selector)
   React.useEffect(() => {
@@ -150,10 +154,21 @@ export function EmployeesView() {
         </div>
         <div className="flex items-center gap-2">
           {selectedCompany && (
-            <PearlButton onClick={() => setBureauView("employee_new")}>
-              <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">person_add</span>
-              Add Employee
-            </PearlButton>
+            <>
+              <ExportButton
+                href={`/api/companies/${selectedCompany}/employees/export`}
+                label="Export List"
+                icon="file_export"
+              />
+              <GhostButton onClick={() => setImportOpen(true)}>
+                <span className="material-symbols-outlined text-[14px] mr-1.5 align-middle">upload</span>
+                Bulk Import
+              </GhostButton>
+              <PearlButton onClick={() => setBureauView("employee_new")}>
+                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">person_add</span>
+                Add Employee
+              </PearlButton>
+            </>
           )}
         </div>
       </div>
@@ -356,6 +371,107 @@ export function EmployeesView() {
           )}
         </>
       )}
+
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} companyId={selectedCompany} onDone={() => { setImportOpen(false); loadEmployees(); }} />
     </div>
+  );
+}
+
+// ============ IMPORT MODAL (I1 — Bulk CSV import) ============
+function ImportModal({ open, onClose, companyId, onDone }: { open: boolean; onClose: () => void; companyId: string; onDone: () => void }) {
+  const [file, setFile] = React.useState<File | null>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const [result, setResult] = React.useState<any>(null);
+
+  const upload = async () => {
+    if (!file) { toast("Select a CSV file first", "error"); return; }
+    setUploading(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("companyId", companyId);
+    try {
+      const res = await fetch("/api/employees/import", { method: "POST", body: fd });
+      const d = await res.json();
+      setResult(d);
+      if (d.inserted > 0) toast(`${d.inserted} employees imported`, "success");
+      if (d.failed > 0) toast(`${d.failed} rows failed — download error report`, "error");
+    } catch (e: any) {
+      toast(e.message || "Import failed", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const downloadErrors = () => {
+    if (result?.errorFileId) {
+      window.open(`/api/exports/${result.errorFileId}/download`, "_blank");
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Bulk Import Employees" wide>
+      <div className="flex flex-col gap-4">
+        <div className="border border-subtle bg-surface-low px-4 py-3 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[16px] text-warning">info</span>
+          <p className="text-[12px] text-tsecondary">CSV format, max 5 MB. Headers are case/space tolerant. NINO/tax code/sort code validated per row; duplicates detected by NINO.</p>
+        </div>
+
+        {/* Template download */}
+        <div className="flex items-center justify-between px-4 py-3 border border-subtle">
+          <div>
+            <div className="text-[13px] text-tprimary font-medium">Download template</div>
+            <div className="text-[11px] text-ttertiary">22-column CSV with sample row — kills 80% of import failures</div>
+          </div>
+          <ExportButton href="/api/employees/import/template" label="Template" icon="description" filename="kedbyte-employee-import-template.csv" />
+        </div>
+
+        {/* File picker */}
+        <Field label="CSV File">
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => { setFile(e.target.files?.[0] || null); setResult(null); }}
+            className="text-[12px] text-tsecondary file:mr-3 file:px-3 file:py-1.5 file:border file:border-subtle file:bg-surface file:text-tprimary file:text-[12px] file:cursor-pointer hover:file:border-pearl-dim"
+          />
+        </Field>
+
+        {/* Result */}
+        {result && (
+          <div className="border border-subtle bg-surface-low p-4">
+            <div className="label-caps text-tsecondary mb-3">Import Result</div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-[11px] text-ttertiary">Total rows</div>
+                <div className="data-sm text-tprimary">{result.total}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-ttertiary">Inserted</div>
+                <div className="data-sm text-success">{result.inserted}</div>
+              </div>
+              <div>
+                <div className="text-[11px] text-ttertiary">Failed</div>
+                <div className="data-sm text-error">{result.failed}</div>
+              </div>
+            </div>
+            {result.failed > 0 && (
+              <div className="mt-4 pt-3 border-t border-subtle">
+                <div className="text-[11px] text-ttertiary mb-2">Error preview:</div>
+                {result.errors?.slice(0, 5).map((e: any, i: number) => (
+                  <div key={i} className="text-[11px] font-mono text-error">Row {e.row}: {e.field} — {e.message}</div>
+                ))}
+                <div className="mt-3">
+                  <ExportButton href={`/api/exports/${result.errorFileId}/download`} label="Download full error report" icon="error" filename={`employee-import-errors-${result.jobId}.csv`} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+          <GhostButton onClick={result ? onDone : onClose}>{result ? "Done" : "Cancel"}</GhostButton>
+          {!result && <PearlButton onClick={upload} disabled={uploading || !file}>{uploading ? "Uploading…" : "Upload & Import"}</PearlButton>}
+        </div>
+      </div>
+    </Modal>
   );
 }

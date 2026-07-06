@@ -4,6 +4,7 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { useApp, type PortalView } from "@/store/app";
 import { toast } from "@/components/kedbyte/primitives";
+import { MyAccountModal } from "@/components/kedbyte/my-account";
 
 // Lazy-load views to reduce initial compile memory pressure
 const PortalDashboard = dynamic(() => import("@/components/kedbyte/views/portal-dashboard").then(m => ({ default: m.PortalDashboard })), { ssr: false });
@@ -25,6 +26,7 @@ export function PortalShell() {
   const { user, portalView, setPortalView, logout } = useApp();
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
+  const [accountOpen, setAccountOpen] = React.useState(false);
 
   const loadNotifs = React.useCallback(() => {
     if (!user) return;
@@ -76,6 +78,13 @@ export function PortalShell() {
             {unreadCount > 0 && (
               <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-error" />
             )}
+          </button>
+          <button
+            onClick={() => setAccountOpen(true)}
+            className="p-2 text-tsecondary hover:text-tprimary transition-colors"
+            title="My Account"
+          >
+            <span className="material-symbols-outlined text-[20px]">manage_accounts</span>
           </button>
           <button
             onClick={() => { logout(); toast("Signed out", "info"); }}
@@ -150,6 +159,7 @@ export function PortalShell() {
 
       {/* Desktop content offset */}
       <style>{`@media (min-width:1024px){main{padding-left:calc(50% - 380px + 12px)}}`}</style>
+      <MyAccountModal open={accountOpen} onClose={() => setAccountOpen(false)} />
     </div>
   );
 }

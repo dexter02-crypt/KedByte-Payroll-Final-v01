@@ -11,6 +11,7 @@ import {
   GhostButton,
   toast,
 } from "@/components/kedbyte/primitives";
+import { ExportButton } from "@/components/kedbyte/export-button";
 
 // ============ TYPES ============
 interface MonthRow {
@@ -368,14 +369,18 @@ export function ReportsView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <GhostButton onClick={() => toast("PDF export queued", "info")}>
-            <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">picture_as_pdf</span>
-            Export PDF
-          </GhostButton>
-          <GhostButton onClick={() => toast("CSV export queued", "info")}>
-            <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">table_chart</span>
-            Export CSV
-          </GhostButton>
+          <ExportButton
+            href="/api/reports/gross-to-net/export"
+            label="Export CSV"
+            icon="table_chart"
+            filename="gross-to-net-report.csv"
+          />
+          <ExportButton
+            href="/api/reports/gpg/export?snapshot=2026-04-05"
+            label="GPG CSV"
+            icon="balance"
+            filename="gpg-2026-04-05.csv"
+          />
           <PearlButton onClick={() => toast("Report saved to dashboard", "success")}>
             <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle">bookmark_add</span>
             Save Report

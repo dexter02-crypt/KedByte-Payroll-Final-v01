@@ -112,12 +112,21 @@ const FLAT_CODES: Record<string, { rate: number; regime: string }> = {
 export function parseTaxCode(input: string): ParsedTaxCode {
   let raw = (input || "").toUpperCase().replace(/\s+/g, "");
   let regime: "ruk" | "scotland" | "wales" = "ruk";
-  if (raw.startsWith("S")) {
+
+  // Check for Scottish/Welsh flat codes BEFORE stripping prefix
+  // (SBR/SD0/SD1/SD2/SD3/CBR/CD0/CD1 are whole-code flat codes, not S+code)
+  if (["SBR", "SD0", "SD1", "SD2", "SD3"].includes(raw)) {
+    regime = "scotland";
+    // Don't strip — these are complete flat codes
+  } else if (["CBR", "CD0", "CD1"].includes(raw)) {
+    regime = "wales";
+    // Don't strip — these are complete flat codes
+  } else if (raw.startsWith("S")) {
     regime = "scotland";
     raw = raw.slice(1);
   } else if (raw.startsWith("C")) {
     // C prefix = Wales only if followed by flat code or number
-    if (/^C\d/.test(raw) || raw === "C0T" || raw === "CBR" || raw === "CD0" || raw === "CD1") {
+    if (/^C\d/.test(raw) || raw === "C0T") {
       regime = "wales";
       raw = raw.slice(1);
     }
@@ -239,7 +248,12 @@ export function calculatePAYE(inp: PayeInput): PayeResult {
   }
 
   const p = parsed.week1Month1 ? 1 : inp.period;
-  const grossToDate = inp.ytdTaxable + inp.grossTaxableThisPeriod;
+
+  // W1/M1 ignores YTD entirely — grossToDate = this period only, no YTD subtraction
+  const grossToDate = parsed.week1Month1
+    ? inp.grossTaxableThisPeriod
+    : inp.ytdTaxable + inp.grossTaxableThisPeriod;
+
   const freePayToDate = round2((parsed.annualFreePay * p) / 12);
   const addlToDate = round2((parsed.annualAdditionalPay * p) / 12);
   const taxableToDate = floorPound(Math.max(0, grossToDate - freePayToDate + addlToDate));
@@ -254,7 +268,10 @@ export function calculatePAYE(inp: PayeInput): PayeResult {
     taxDueToDate = rukTax(taxableToDate, p);
   }
 
-  let tax = floorPenny(taxDueToDate - inp.ytdTaxPaid);
+  // W1/M1: no YTD subtraction (tax = taxDueToDate for this period only)
+  let tax = parsed.week1Month1
+    ? floorPenny(taxDueToDate)
+    : floorPenny(taxDueToDate - inp.ytdTaxPaid);
 
   // REGULATORY LIMIT (K & 0T protection): tax ≤ 50% × grossTaxableThisPeriod
   let regulatoryLimited = false;
@@ -744,8 +761,8 @@ export function validateNINO(nino: string): boolean {
 export function maskNINO(nino?: string | null): string {
   if (!nino) return "—";
   const cleaned = nino.replace(/\s+/g, "").toUpperCase();
-  if (cleaned.length < 8) return cleaned;
-  return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} •• •• ${cleaned.slice(7)}`;
+  if (cleaned.length < 9) return cleaned;
+  return `${cleaned.slice(0, 2)} ${cleaned.slice(2, 4)} •• •• ${cleaned.slice(8)}`;
 }
 
 export function validatePAYERef(ref: string): boolean {

@@ -15,6 +15,7 @@ import {
   toast,
 } from "@/components/kedbyte/primitives";
 import { cn } from "@/lib/utils";
+import { ExportButton } from "@/components/kedbyte/export-button";
 
 // ============ TYPES ============
 interface Entry {
@@ -413,6 +414,14 @@ export function PayRunReview() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {activePayRunId && (
+              <ExportButton
+                href={`/api/payruns/${activePayRunId}/entries/export`}
+                label="Export entries CSV"
+                icon="table_chart"
+                filename={`payrun-entries-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
+            )}
             <GhostButton onClick={() => setBureauView("payrun_calculation")}>
               <span className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[16px]">arrow_back</span>

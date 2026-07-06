@@ -21,6 +21,14 @@ export const metadata: Metadata = {
   title: "Kedbyte Payroll — Bureau Command Center",
   description:
     "Multi-tenant UK payroll bureau platform with HMRC RTI compliance. Bureau Command Center + Employee Self-Service Portal.",
+  icons: {
+    icon: "/logo.svg?v=2",
+    shortcut: "/logo.svg?v=2",
+    apple: "/logo.svg?v=2",
+  },
+  applicationName: "Kedbyte Payroll",
+  authors: [{ name: "Kedbyte Payroll" }],
+  keywords: ["UK payroll", "HMRC RTI", "bureau payroll", "payroll software", "Kedbyte"],
 };
 
 export default function RootLayout({
@@ -29,6 +37,20 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className="dark">
       <head>
+        <link
+          rel="icon"
+          href="/logo.svg?v=2"
+          type="image/svg+xml"
+        />
+        <link
+          rel="shortcut icon"
+          href="/logo.svg?v=2"
+          type="image/svg+xml"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="/logo.svg?v=2"
+        />
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300,0,0&display=block"

@@ -14,6 +14,7 @@ import {
   Modal,
   toast,
 } from "@/components/kedbyte/primitives";
+import { ExportButton } from "@/components/kedbyte/export-button";
 
 // ============ TYPES ============
 interface Submission {
@@ -636,17 +637,33 @@ export function RtiView() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="section-title text-tprimary">XML Payload</h3>
-                <GhostButton
-                  onClick={() => {
-                    navigator.clipboard?.writeText(synthesizeXml(selected));
-                    toast("XML payload copied to clipboard", "success");
-                  }}
-                >
-                  <span className="material-symbols-outlined text-[14px] mr-1.5 align-middle">
-                    content_copy
-                  </span>
-                  Copy
-                </GhostButton>
+                <div className="flex items-center gap-2">
+                  <GhostButton
+                    onClick={() => {
+                      navigator.clipboard?.writeText(synthesizeXml(selected));
+                      toast("XML payload copied to clipboard", "success");
+                    }}
+                  >
+                    <span className="material-symbols-outlined text-[14px] mr-1.5 align-middle">
+                      content_copy
+                    </span>
+                    Copy
+                  </GhostButton>
+                  <ExportButton
+                    href={`/api/rti/${selected.id}/xml`}
+                    label="Download XML"
+                    icon="code"
+                    filename={`fps-${selected.companyName?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${selected.taxYear}-M${String(selected.taxPeriod).padStart(2, "0")}.xml`}
+                  />
+                  {selected.status === "accepted" && (
+                    <ExportButton
+                      href={`/api/rti/${selected.id}/response`}
+                      label="Response XML"
+                      icon="receipt"
+                      filename={`fps-response-${selected.correlationId || selected.id}.xml`}
+                    />
+                  )}
+                </div>
               </div>
               <pre className="bg-surface-low border border-subtle p-4 overflow-x-auto scroll-thin font-mono text-[11px] leading-relaxed text-tsecondary max-h-72">
                 {synthesizeXml(selected)}

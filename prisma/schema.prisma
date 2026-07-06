@@ -29,8 +29,10 @@ model User {
   role           String // bureau_admin | company_admin | payroll_manager | employee | accountant
   isManager      Boolean  @default(false)
   mfaEnabled     Boolean  @default(false)
+  mfaSecret      String?
   failedLogins   Int      @default(0)
   lockedUntil    DateTime?
+  tokenVersion   Int      @default(0)
   lastLogin      DateTime?
   status         String   @default("active")
   createdAt      DateTime @default(now())
@@ -122,6 +124,7 @@ model Employee {
   aeAssessments        AeAssessment[]
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  @@unique([companyId, payrollId])
 }
 
 model PendingBankChange {
