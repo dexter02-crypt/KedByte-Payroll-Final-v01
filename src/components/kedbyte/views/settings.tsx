@@ -1424,9 +1424,12 @@ function NotificationsTab() {
 // TAB 9: SYSTEM
 // ============================================================
 function SystemTab() {
+  const { user } = useApp();
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [exporting, setExporting] = React.useState(false);
+  const [bankSyncing, setBankSyncing] = React.useState(false);
+  const [dpsFetching, setDpsFetching] = React.useState(false);
 
   const load = () => {
     setLoading(true);
@@ -1441,6 +1444,89 @@ function SystemTab() {
 
   if (loading) return <div className="text-[13px] text-ttertiary font-mono">Loading…</div>;
   if (!data) return null;
+
+  const syncBankHolidays = async () => {
+    setBankSyncing(true);
+    try {
+      const res = await fetch("/api/bank-holidays/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: user?.id || "user_admin" }),
+      });
+      const d = await res.json();
+      if (d.jobId) {
+        toast(d.message || "Bank holiday sync queued", "info");
+        // Poll for completion
+        for (let i = 0; i < 15; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
+          if (statusRes.ok) {
+            const sd = await statusRes.json();
+            if (sd.status === "completed") {
+              toast(`Bank holiday sync complete — ${sd.result?.diff || "no changes"}`, "success");
+              setBankSyncing(false);
+              load();
+              return;
+            }
+            if (sd.status === "failed") {
+              toast("Bank holiday sync failed", "error");
+              setBankSyncing(false);
+              return;
+            }
+          }
+        }
+        setBankSyncing(false);
+      } else {
+        toast(d.error || "Sync failed", "error");
+        setBankSyncing(false);
+      }
+    } catch (e) {
+      toast("Network error", "error");
+      setBankSyncing(false);
+    }
+  };
+
+  const fetchDps = async () => {
+    setDpsFetching(true);
+    try {
+      const res = await fetch("/api/dps/fetch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actorId: user?.id || "user_admin" }),
+      });
+      const d = await res.json();
+      if (d.jobId) {
+        toast(d.message || "DPS fetch queued", "info");
+        // Poll for completion
+        for (let i = 0; i < 15; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
+          if (statusRes.ok) {
+            const sd = await statusRes.json();
+            if (sd.status === "completed") {
+              const r = sd.result || {};
+              toast(`DPS fetch complete — ${r.applied || 0} notices applied, ${r.exceptions || 0} exceptions`, "success");
+              setDpsFetching(false);
+              load();
+              return;
+            }
+            if (sd.status === "failed") {
+              toast("DPS fetch failed", "error");
+              setDpsFetching(false);
+              return;
+            }
+          }
+        }
+        setDpsFetching(false);
+      } else {
+        toast(d.error || "DPS fetch failed", "error");
+        setDpsFetching(false);
+      }
+    } catch (e) {
+      toast("Network error", "error");
+      setDpsFetching(false);
+    }
+  };
 
   const doExport = async (format: string) => {
     setExporting(true);
@@ -1481,7 +1567,16 @@ function SystemTab() {
       </SectionCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Bank Holiday Sync" actions={<GhostButton onClick={() => toast("Sync job queued", "info")}>Sync Now</GhostButton>}>
+        <SectionCard title="Bank Holiday Sync" actions={
+          <GhostButton onClick={syncBankHolidays} disabled={bankSyncing}>
+            {bankSyncing ? (
+              <>
+                <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin">progress_activity</span>
+                Syncing…
+              </>
+            ) : "Sync Now"}
+          </GhostButton>
+        }>
           <KeyValueTable rows={[
             { key: "last", label: "Last Run", value: fmtDateTime(data.bankHolidaySync.lastRunAt), mono: true },
             { key: "next", label: "Next Scheduled", value: fmtDateTime(data.bankHolidaySync.nextRunAt), mono: true },
@@ -1489,7 +1584,16 @@ function SystemTab() {
             { key: "source", label: "Source", value: data.bankHolidaySync.source },
           ]} />
         </SectionCard>
-        <SectionCard title="DPS Notice Fetch" actions={<GhostButton onClick={() => toast("DPS fetch queued", "info")}>Fetch Now</GhostButton>}>
+        <SectionCard title="DPS Notice Fetch" actions={
+          <GhostButton onClick={fetchDps} disabled={dpsFetching}>
+            {dpsFetching ? (
+              <>
+                <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin">progress_activity</span>
+                Fetching…
+              </>
+            ) : "Fetch Now"}
+          </GhostButton>
+        }>
           <KeyValueTable rows={[
             { key: "last", label: "Last Run", value: fmtDateTime(data.dpsFetch.lastRunAt), mono: true },
             ...Object.entries(data.dpsFetch.highWaterMarks).map(([k, v]: [string, any]) => ({
