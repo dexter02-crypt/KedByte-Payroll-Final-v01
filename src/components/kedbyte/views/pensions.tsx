@@ -160,7 +160,6 @@ export function PensionsView() {
 
   const assessNow = async () => {
     setAssessing(true);
-    toast("Assessment queued · " + (selectedCompany ? "1 company" : "all companies"), "info");
     try {
       const res = await fetch("/api/pensions", {
         method: "POST",

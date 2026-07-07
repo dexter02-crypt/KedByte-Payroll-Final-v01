@@ -1132,13 +1132,12 @@ function BankHolidaysModal({ open, onClose }: { open: boolean; onClose: () => vo
       const res = await fetch("/api/bank-holidays/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorId: "user_admin" }) });
       const d = await res.json();
       if (d.jobId) {
-        toast("Bank holiday sync queued", "info");
         for (let i = 0; i < 10; i++) {
           await new Promise((r) => setTimeout(r, 2000));
           const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
           if (statusRes.ok) {
             const sd = await statusRes.json();
-            if (sd.status === "completed") { toast("Sync complete", "success"); setSyncing(false); load(); return; }
+            if (sd.status === "completed") { toast("Sync completed", "success"); setSyncing(false); load(); return; }
             if (sd.status === "failed") { toast("Sync failed", "error"); setSyncing(false); return; }
           }
         }
@@ -1690,21 +1689,20 @@ function SystemTab() {
       });
       const d = await res.json();
       if (d.jobId) {
-        toast(d.message || "Bank holiday sync queued", "info");
-        // Poll for completion
+        // Poll for completion — no "queued" toast, just wait silently
         for (let i = 0; i < 15; i++) {
           await new Promise((r) => setTimeout(r, 2000));
           const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
           if (statusRes.ok) {
             const sd = await statusRes.json();
             if (sd.status === "completed") {
-              toast(`Bank holiday sync complete — ${sd.result?.diff || "no changes"}`, "success");
+              toast("Sync completed", "success");
               setBankSyncing(false);
               load();
               return;
             }
             if (sd.status === "failed") {
-              toast("Bank holiday sync failed", "error");
+              toast("Sync failed", "error");
               setBankSyncing(false);
               return;
             }
@@ -1731,16 +1729,14 @@ function SystemTab() {
       });
       const d = await res.json();
       if (d.jobId) {
-        toast(d.message || "DPS fetch queued", "info");
-        // Poll for completion
+        // Poll for completion — no "queued" toast, just wait silently
         for (let i = 0; i < 15; i++) {
           await new Promise((r) => setTimeout(r, 2000));
           const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
           if (statusRes.ok) {
             const sd = await statusRes.json();
             if (sd.status === "completed") {
-              const r = sd.result || {};
-              toast(`DPS fetch complete — ${r.applied || 0} notices applied, ${r.exceptions || 0} exceptions`, "success");
+              toast("DPS fetch completed", "success");
               setDpsFetching(false);
               load();
               return;
