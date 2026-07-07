@@ -610,6 +610,7 @@ function OverrideForm({ row, taxYear, onSaved }: { row: any; taxYear: string; on
 // TAB 3: PENSION (the fixed "RETIREM" tab)
 // ============================================================
 function PensionTab({ companyId, setCompanyId }: { companyId: string | null; setCompanyId: (id: string | null) => void }) {
+  const { setBureauView } = useApp();
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [editOpen, setEditOpen] = React.useState(false);
@@ -705,10 +706,11 @@ function PensionTab({ companyId, setCompanyId }: { companyId: string | null; set
         </SectionCard>
       )}
 
-      <div className="flex items-center gap-3 text-[12px] text-tsecondary">
-        <span className="material-symbols-outlined text-[16px]">link</span>
-        <span>Assessment & members →</span>
-        <button onClick={() => toast("Navigate to Pensions in sidebar", "info")} className="text-pearl hover:underline">/bureau/pensions</button>
+      <div className="flex items-center gap-3">
+        <PearlButton onClick={() => setBureauView("pensions")}>
+          <span className="material-symbols-outlined text-[14px] mr-1.5 align-middle">groups</span>
+          View Assessment & Members
+        </PearlButton>
       </div>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Pension Scheme" wide>
@@ -834,6 +836,7 @@ function PensionEditForm({ scheme, companyId, onSaved }: { scheme: any; companyI
 // TAB 4: BANK
 // ============================================================
 function BankTab({ companyId, setCompanyId }: { companyId: string | null; setCompanyId: (id: string | null) => void }) {
+  const { setBureauView } = useApp();
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [editOpen, setEditOpen] = React.useState(false);
@@ -892,7 +895,7 @@ function BankTab({ companyId, setCompanyId }: { companyId: string | null; setCom
       <SectionCard title="Linked Configuration">
         <div className="flex flex-col gap-2">
           {data.linkedCards.map((c: any) => (
-            <button key={c.href} onClick={() => toast(`Navigate to ${c.label}`, "info")} className="flex items-center justify-between px-4 py-3 border border-subtle hover:bg-surface-high transition-colors text-left">
+            <button key={c.href} onClick={() => { setBureauView("settings"); toast(`Opening ${c.label} settings`, "info"); }} className="flex items-center justify-between px-4 py-3 border border-subtle hover:bg-surface-high transition-colors text-left">
               <span className="text-[13px] text-tprimary">{c.label}</span>
               <span className="material-symbols-outlined text-[16px] text-ttertiary">arrow_forward</span>
             </button>
@@ -1253,6 +1256,7 @@ function SecurityTab() {
 // TAB 7: COMPLIANCE
 // ============================================================
 function ComplianceTab({ companyId, setCompanyId }: { companyId: string | null; setCompanyId: (id: string | null) => void }) {
+  const { setBureauView } = useApp();
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -1298,7 +1302,7 @@ function ComplianceTab({ companyId, setCompanyId }: { companyId: string | null; 
                 </div>
                 <div className="flex items-center gap-3">
                   {item.done ? <StatusChip status="approved" label="Done" /> : overdue ? <StatusChip status="overdue" label={`Overdue ${Math.abs(days)}d`} /> : soon ? <StatusChip status="pending" label={`${days}d left`} /> : <span className="text-[12px] text-ttertiary font-mono">{fmtDate(item.due)}</span>}
-                  {item.href && <button onClick={() => toast("Navigate to " + item.href, "info")} className="text-[11px] text-tsecondary hover:text-pearl uppercase tracking-wider">Open</button>}
+                  {item.href && <button onClick={() => { if (item.href.includes("rti")) setBureauView("rti"); else setBureauView("settings"); }} className="text-[11px] text-tsecondary hover:text-pearl uppercase tracking-wider">Open</button>}
                 </div>
               </div>
             );
