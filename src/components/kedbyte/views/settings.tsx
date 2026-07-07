@@ -1158,7 +1158,7 @@ function BankHolidaysModal({ open, onClose }: { open: boolean; onClose: () => vo
             </div>
             <GhostButton onClick={sync} disabled={syncing}>
               {syncing ? (
-                <><span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin">progress_activity</span>Syncing…</>
+                <><span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin-slow">progress_activity</span>Syncing…</>
               ) : (
                 <><span className="material-symbols-outlined text-[14px] mr-1 align-middle">sync</span>Sync Now</>
               )}
@@ -1806,7 +1806,7 @@ function SystemTab() {
           <GhostButton onClick={syncBankHolidays} disabled={bankSyncing}>
             {bankSyncing ? (
               <>
-                <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin-slow">progress_activity</span>
                 Syncing…
               </>
             ) : "Sync Now"}
@@ -1823,7 +1823,7 @@ function SystemTab() {
           <GhostButton onClick={fetchDps} disabled={dpsFetching}>
             {dpsFetching ? (
               <>
-                <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin-slow">progress_activity</span>
                 Fetching…
               </>
             ) : "Fetch Now"}

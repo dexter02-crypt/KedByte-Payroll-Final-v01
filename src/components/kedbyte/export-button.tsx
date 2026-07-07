@@ -75,7 +75,7 @@ export function ExportButton({ href, label, icon, method = "GET", body, filename
   }
   return (
     <button onClick={click} disabled={state === "preparing"} className="inline-flex items-center gap-2 px-3 py-1.5 border border-subtle text-tsecondary text-[13px] font-medium hover:text-tprimary hover:border-pearl-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-      {state === "preparing" ? <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span> : state === "error" ? <span className="material-symbols-outlined text-[14px] text-error">error</span> : <span className="material-symbols-outlined text-[14px]">{icon || "download"}</span>}
+      {state === "preparing" ? <span className="material-symbols-outlined text-[14px] animate-spin-slow">progress_activity</span> : state === "error" ? <span className="material-symbols-outlined text-[14px] text-error">error</span> : <span className="material-symbols-outlined text-[14px]">{icon || "download"}</span>}
       {state === "preparing" ? "Preparing…" : state === "error" ? "Failed — retry" : label}
     </button>
   );

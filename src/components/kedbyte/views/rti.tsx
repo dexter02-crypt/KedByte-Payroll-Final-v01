@@ -836,7 +836,7 @@ function FpsSubmitModal({ open, onClose, onSubmitted, userId }: { open: boolean;
           <PearlButton onClick={submit} disabled={submitting || !selectedPayRun}>
             {submitting ? (
               <>
-                <span className="material-symbols-outlined text-[14px] mr-1.5 align-middle animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined text-[14px] mr-1.5 align-middle animate-spin-slow">progress_activity</span>
                 Submitting…
               </>
             ) : (

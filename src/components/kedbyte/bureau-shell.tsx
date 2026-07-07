@@ -417,7 +417,7 @@ function SupportModal({ open, onClose }: { open: boolean; onClose: () => void })
               <PearlButton onClick={submit} disabled={sending || !topic || !message}>
                 {sending ? (
                   <>
-                    <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin">progress_activity</span>
+                    <span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin-slow">progress_activity</span>
                     Submitting…
                   </>
                 ) : (

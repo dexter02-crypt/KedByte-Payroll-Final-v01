@@ -264,7 +264,7 @@ export function PayRunInput() {
               <PearlButton onClick={handleCreate} disabled={creating || !pickedCompany}>
                 {creating ? (
                   <span className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                    <span className="material-symbols-outlined text-[16px] animate-spin-slow">progress_activity</span>
                     Creating…
                   </span>
                 ) : (
@@ -285,7 +285,7 @@ export function PayRunInput() {
   if (loading || !payRun) {
     return (
       <div className="flex items-center justify-center py-20">
-        <span className="material-symbols-outlined text-[28px] text-ttertiary animate-spin mr-3">progress_activity</span>
+        <span className="material-symbols-outlined text-[28px] text-ttertiary animate-spin-slow mr-3">progress_activity</span>
         <span className="text-[13px] text-tsecondary font-mono">Loading pay run…</span>
       </div>
     );
@@ -337,7 +337,7 @@ export function PayRunInput() {
           <div className="flex items-center gap-3">
             {saving ? (
               <span className="flex items-center gap-1.5 text-[11px] font-mono text-warning uppercase tracking-wider">
-                <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined text-[14px] animate-spin-slow">progress_activity</span>
                 Saving…
               </span>
             ) : savedAt ? (

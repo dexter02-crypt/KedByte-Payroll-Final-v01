@@ -220,7 +220,7 @@ export function PensionsView() {
           <PearlButton onClick={assessNow} disabled={assessing}>
             {assessing ? (
               <>
-                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin-slow">progress_activity</span>
                 Assessing…
               </>
             ) : (
@@ -467,7 +467,7 @@ export function PensionsView() {
               <PearlButton onClick={handleOptout} disabled={submitting || !receivedDate}>
                 {submitting ? (
                   <>
-                    <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin">
+                    <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin-slow">
                       progress_activity
                     </span>
                     Processing…

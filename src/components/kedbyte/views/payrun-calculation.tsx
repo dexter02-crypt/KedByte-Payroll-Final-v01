@@ -372,7 +372,7 @@ export function PayRunCalculation() {
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-[11px] font-mono text-ttertiary uppercase tracking-wider">
-              <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+              <span className="material-symbols-outlined text-[14px] animate-spin-slow">progress_activity</span>
               Calculation in progress…
             </span>
           )}

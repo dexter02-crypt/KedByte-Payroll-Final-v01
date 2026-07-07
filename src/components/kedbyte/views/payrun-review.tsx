@@ -228,7 +228,7 @@ export function PayRunReview() {
   if (loading || !payRun) {
     return (
       <div className="flex items-center justify-center py-20">
-        <span className="material-symbols-outlined text-[28px] text-ttertiary animate-spin mr-3">progress_activity</span>
+        <span className="material-symbols-outlined text-[28px] text-ttertiary animate-spin-slow mr-3">progress_activity</span>
         <span className="text-[13px] text-tsecondary font-mono">Loading review…</span>
       </div>
     );

@@ -199,7 +199,7 @@ export function PayRunSubmission() {
   if (loading || !payRun) {
     return (
       <div className="flex items-center justify-center py-20">
-        <span className="material-symbols-outlined text-[28px] text-ttertiary animate-spin mr-3">progress_activity</span>
+        <span className="material-symbols-outlined text-[28px] text-ttertiary animate-spin-slow mr-3">progress_activity</span>
         <span className="text-[13px] text-tsecondary font-mono">Loading submission…</span>
       </div>
     );
@@ -422,7 +422,7 @@ export function PayRunSubmission() {
           <PearlButton onClick={finalise} disabled={finalising}>
             {finalising ? (
               <span className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined text-[16px] animate-spin-slow">progress_activity</span>
                 Finalising…
               </span>
             ) : (
@@ -532,7 +532,7 @@ function ActionCard({
               "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-subtle disabled:hover:text-tsecondary"
             )}
           >
-            {isRunning && <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>}
+            {isRunning && <span className="material-symbols-outlined text-[14px] animate-spin-slow">progress_activity</span>}
             {actionLabel}
           </button>
         )}
@@ -562,7 +562,7 @@ function StatusIndicator({ status, label }: { status: CardStatus; label: string 
       : "radio_button_unchecked";
   return (
     <span className={cn("flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider", cls)}>
-      <span className={cn("material-symbols-outlined text-[14px]", status === "submitting" && "animate-spin")}>{icon}</span>
+      <span className={cn("material-symbols-outlined text-[14px]", status === "submitting" && "animate-spin-slow")}>{icon}</span>
       {label}
     </span>
   );

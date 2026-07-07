@@ -452,7 +452,7 @@ export function CompaniesView() {
             <PearlButton onClick={submit} disabled={!canSubmit}>
               {submitting ? (
                 <>
-                  <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin">progress_activity</span>
+                  <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin-slow">progress_activity</span>
                   Creating…
                 </>
               ) : (

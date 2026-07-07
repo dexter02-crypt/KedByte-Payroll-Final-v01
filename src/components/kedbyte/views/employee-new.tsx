@@ -615,7 +615,7 @@ export function EmployeeNewView() {
           <GhostButton onClick={() => submit("draft")} disabled={!canSubmit || submitting !== null}>
             {submitting === "draft" ? (
               <>
-                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin-slow">progress_activity</span>
                 Saving…
               </>
             ) : (
@@ -625,7 +625,7 @@ export function EmployeeNewView() {
           <PearlButton onClick={() => submit("active")} disabled={!canSubmit || submitting !== null}>
             {submitting === "active" ? (
               <>
-                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin">progress_activity</span>
+                <span className="material-symbols-outlined text-[16px] mr-1.5 align-middle animate-spin-slow">progress_activity</span>
                 Activating…
               </>
             ) : (
