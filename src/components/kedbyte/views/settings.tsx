@@ -840,6 +840,8 @@ function BankTab({ companyId, setCompanyId }: { companyId: string | null; setCom
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [editOpen, setEditOpen] = React.useState(false);
+  const [payScheduleOpen, setPayScheduleOpen] = React.useState(false);
+  const [bankHolidaysOpen, setBankHolidaysOpen] = React.useState(false);
 
   const load = React.useCallback(() => {
     if (!companyId) { setData(null); setLoading(false); return; }
@@ -894,18 +896,34 @@ function BankTab({ companyId, setCompanyId }: { companyId: string | null; setCom
 
       <SectionCard title="Linked Configuration">
         <div className="flex flex-col gap-2">
-          {data.linkedCards.map((c: any) => (
-            <button key={c.href} onClick={() => { setBureauView("settings"); toast(`Opening ${c.label} settings`, "info"); }} className="flex items-center justify-between px-4 py-3 border border-subtle hover:bg-surface-high transition-colors text-left">
-              <span className="text-[13px] text-tprimary">{c.label}</span>
-              <span className="material-symbols-outlined text-[16px] text-ttertiary">arrow_forward</span>
-            </button>
-          ))}
+          <button onClick={() => setPayScheduleOpen(true)} className="flex items-center justify-between px-4 py-3 border border-subtle hover:bg-surface-high transition-colors text-left">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-[18px] text-pearl">calendar_month</span>
+              <div>
+                <span className="text-[13px] text-tprimary">Pay Schedule</span>
+                <p className="text-[11px] text-ttertiary">Configure pay dates, frequency, and early-pay rules</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[16px] text-ttertiary">arrow_forward</span>
+          </button>
+          <button onClick={() => setBankHolidaysOpen(true)} className="flex items-center justify-between px-4 py-3 border border-subtle hover:bg-surface-high transition-colors text-left">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-[18px] text-pearl">event_busy</span>
+              <div>
+                <span className="text-[13px] text-tprimary">Bank Holidays</span>
+                <p className="text-[11px] text-ttertiary">View and sync the gov.uk bank holiday registry</p>
+              </div>
+            </div>
+            <span className="material-symbols-outlined text-[16px] text-ttertiary">arrow_forward</span>
+          </button>
         </div>
       </SectionCard>
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Bank Details">
         <BankEditForm companyId={companyId!} onSaved={() => { setEditOpen(false); load(); }} />
       </Modal>
+      <PayScheduleModal open={payScheduleOpen} onClose={() => setPayScheduleOpen(false)} companyId={companyId!} />
+      <BankHolidaysModal open={bankHolidaysOpen} onClose={() => setBankHolidaysOpen(false)} />
     </div>
   );
 }
@@ -974,7 +992,202 @@ function BankEditForm({ companyId, onSaved }: { companyId: string; onSaved: () =
   );
 }
 
-// ============================================================
+// ============ PAY SCHEDULE MODAL ============
+function PayScheduleModal({ open, onClose, companyId }: { open: boolean; onClose: () => void; companyId: string }) {
+  const [company, setCompany] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [paySchedule, setPaySchedule] = React.useState("monthly_last_working_day");
+  const [payDateDay, setPayDateDay] = React.useState("28");
+  const [earlyPay, setEarlyPay] = React.useState(true);
+
+  React.useEffect(() => {
+    if (open && companyId) {
+      fetch(`/api/companies/${companyId}`)
+        .then((r) => r.json())
+        .then((d) => {
+          setCompany(d.company);
+          setPaySchedule(d.company?.paySchedule || "monthly_last_working_day");
+          setPayDateDay(String(d.company?.payDateDay || 28));
+          setEarlyPay(d.company?.earlyPay ?? true);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    }
+  }, [open, companyId]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings/company", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          changes: [
+            { key: "payScheduleRule", value: paySchedule },
+            { key: "earlyPay", value: earlyPay },
+          ],
+        }),
+      });
+      setSaving(false);
+      if (res.ok) {
+        toast("Pay schedule updated", "success");
+        onClose();
+      } else {
+        toast("Failed to save", "error");
+      }
+    } catch { setSaving(false); toast("Network error", "error"); }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Pay Schedule Configuration" wide>
+      {loading ? <div className="text-[13px] text-ttertiary font-mono">Loading…</div> : (
+        <div className="flex flex-col gap-4">
+          <div className="border border-subtle bg-surface-low px-4 py-3 flex items-center gap-3">
+            <span className="material-symbols-outlined text-[16px] text-warning">info</span>
+            <p className="text-[12px] text-tsecondary">Pay schedule determines when employees are paid. Changes apply from the next pay run. BACS submission date is automatically calculated as 2 working days before the pay date.</p>
+          </div>
+
+          <Field label="Pay Schedule Rule">
+            <Select value={paySchedule} onChange={setPaySchedule} options={[
+              { value: "monthly_last_working_day", label: "Monthly — last working day" },
+              { value: "fixed_date", label: "Monthly — fixed date" },
+              { value: "weekly", label: "Weekly" },
+              { value: "bi_weekly", label: "Bi-weekly" },
+            ]} />
+          </Field>
+
+          {paySchedule === "fixed_date" && (
+            <Field label="Pay Date (day of month)" hint="1-28">
+              <TextInput value={payDateDay} onChange={setPayDateDay} mono />
+            </Field>
+          )}
+
+          <div className="flex items-center gap-3 px-4 py-3 border border-subtle">
+            <input type="checkbox" id="earlyPay" checked={earlyPay} onChange={(e) => setEarlyPay(e.target.checked)} className="accent-pearl" />
+            <label htmlFor="earlyPay" className="text-[13px] text-tprimary">Early pay — move pay date to previous working day if it falls on a weekend or bank holiday</label>
+          </div>
+
+          {/* 12-month preview */}
+          <div className="border border-subtle bg-surface-low p-4">
+            <div className="label-caps text-ttertiary mb-3">12-Month Pay Date Preview</div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month, i) => {
+                const year = 2026;
+                let day: Date;
+                if (paySchedule === "monthly_last_working_day") {
+                  day = new Date(year, i + 1, 0);
+                  while (day.getDay() === 0 || day.getDay() === 6) day.setDate(day.getDate() - 1);
+                } else if (paySchedule === "fixed_date") {
+                  const d = parseInt(payDateDay) || 28;
+                  day = new Date(year, i, Math.min(d, new Date(year, i + 1, 0).getDate()));
+                  if (earlyPay) {
+                    while (day.getDay() === 0 || day.getDay() === 6) day.setDate(day.getDate() - 1);
+                  }
+                } else {
+                  day = new Date(year, i, 15);
+                }
+                return (
+                  <div key={i} className="text-center px-2 py-1.5 border border-subtle bg-surface">
+                    <div className="text-[10px] text-ttertiary uppercase">{month}</div>
+                    <div className="text-[12px] font-mono text-pearl">{day.getDate()}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-ttertiary mt-2">BACS submission date = pay date minus 2 working days</p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-subtle">
+            <GhostButton onClick={onClose}>Cancel</GhostButton>
+            <PearlButton onClick={save} disabled={saving}>{saving ? "Saving…" : "Save Schedule"}</PearlButton>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ============ BANK HOLIDAYS MODAL ============
+function BankHolidaysModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [holidays, setHolidays] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [syncing, setSyncing] = React.useState(false);
+
+  const load = () => {
+    setLoading(true);
+    fetch("/api/bank-holidays")
+      .then((r) => r.json())
+      .then((d) => setHolidays(d.bankHolidays || []))
+      .catch(() => toast("Failed to load bank holidays", "error"))
+      .finally(() => setLoading(false));
+  };
+
+  React.useEffect(() => { if (open) load(); }, [open]);
+
+  const sync = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/bank-holidays/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorId: "user_admin" }) });
+      const d = await res.json();
+      if (d.jobId) {
+        toast("Bank holiday sync queued", "info");
+        for (let i = 0; i < 10; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
+          if (statusRes.ok) {
+            const sd = await statusRes.json();
+            if (sd.status === "completed") { toast("Sync complete", "success"); setSyncing(false); load(); return; }
+            if (sd.status === "failed") { toast("Sync failed", "error"); setSyncing(false); return; }
+          }
+        }
+      }
+      setSyncing(false);
+    } catch { setSyncing(false); toast("Network error", "error"); }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Bank Holiday Registry" wide>
+      {loading ? <div className="text-[13px] text-ttertiary font-mono">Loading…</div> : (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[13px] text-tsecondary">{holidays.length} dates stored · England & Wales</span>
+              <p className="text-[11px] text-ttertiary mt-0.5">Source: gov.uk/bank-holidays.json · nightly sync at 03:00</p>
+            </div>
+            <GhostButton onClick={sync} disabled={syncing}>
+              {syncing ? (
+                <><span className="material-symbols-outlined text-[14px] mr-1 align-middle animate-spin">progress_activity</span>Syncing…</>
+              ) : (
+                <><span className="material-symbols-outlined text-[14px] mr-1 align-middle">sync</span>Sync Now</>
+              )}
+            </GhostButton>
+          </div>
+
+          <div className="border border-subtle max-h-80 overflow-y-auto scroll-thin">
+            {holidays.map((h, i) => (
+              <div key={i} className={`flex items-center justify-between px-4 py-3 ${i < holidays.length - 1 ? "border-b border-subtle" : ""} hover:bg-surface-high transition-colors`}>
+                <div>
+                  <span className="text-[13px] text-tprimary">{h.name}</span>
+                  <span className="text-[11px] text-ttertiary ml-2 font-mono">{h.region.replace(/_/g, " ")}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {h.bacsImpact && <span className="text-[10px] text-warning font-mono uppercase tracking-wider">BACS impact</span>}
+                  <span className="text-[12px] font-mono text-tsecondary">{new Date(h.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-subtle">
+            <PearlButton onClick={onClose}>Close</PearlButton>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
 // TAB 5: USERS
 // ============================================================
 function UsersTab() {
