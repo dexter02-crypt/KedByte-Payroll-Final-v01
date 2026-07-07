@@ -53,7 +53,7 @@ const VIEW_LABELS: Record<BureauView, string> = {
 };
 
 export function BureauShell() {
-  const { user, bureauView, setBureauView, logout } = useApp();
+  const { user, bureauView, setBureauView, logout, setSettingsSection } = useApp();
   const [accountOpen, setAccountOpen] = React.useState(false);
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [supportOpen, setSupportOpen] = React.useState(false);
@@ -91,19 +91,29 @@ export function BureauShell() {
       window.open(actionUrl + `?uid=${user?.id}`, "_blank");
       return;
     }
-    const typeRoutes: Record<string, BureauView> = {
-      export_ready: "settings", rti_status: "rti", rti_rejected: "rti",
-      payslip_ready: "payrun_payslips", p60_ready: "settings",
-      holiday_decision: "dashboard", bank_change: "settings",
-      pay_date: "payrun_input", sync_complete: "settings",
-      dps_fetch_complete: "settings", job_failed: "settings",
-      support_ticket: "notifications", mfa_reset: "settings",
-      password_changed: "settings", password_reset: "settings",
-      yearend_complete: "settings",
+    // Type → (view, settingsSection) mapping
+    const typeRoutes: Record<string, { view: BureauView; section?: string }> = {
+      export_ready: { view: "settings", section: "system" },
+      rti_status: { view: "rti" },
+      rti_rejected: { view: "rti" },
+      payslip_ready: { view: "payrun_payslips" },
+      p60_ready: { view: "settings", section: "compliance" },
+      holiday_decision: { view: "dashboard" },
+      bank_change: { view: "settings", section: "bank" },
+      pay_date: { view: "payrun_input" },
+      sync_complete: { view: "settings", section: "system" },
+      dps_fetch_complete: { view: "settings", section: "system" },
+      job_failed: { view: "settings", section: "system" },
+      support_ticket: { view: "notifications" },
+      mfa_reset: { view: "settings", section: "security" },
+      password_changed: { view: "settings", section: "security" },
+      password_reset: { view: "settings", section: "security" },
+      yearend_complete: { view: "settings", section: "compliance" },
     };
-    const target = typeRoutes[type || ""] || "dashboard";
+    const target = typeRoutes[type || ""] || { view: "dashboard" as BureauView };
     setNotifOpen(false);
-    setBureauView(target);
+    if (target.section) setSettingsSection(target.section);
+    setBureauView(target.view);
   };
 
   const markAllRead = async (uid: string) => {
@@ -325,8 +335,11 @@ export function BureauShell() {
 }
 
 // ============ SUPPORT MODAL ============
+// This is a Help Center — the user submits a ticket to the SUPPORT TEAM
+// (not themselves). The user can track ticket status but cannot resolve
+// their own tickets — that's the support team's job.
 function SupportModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { user } = useApp();
+  const { user, setBureauView } = useApp();
   const [topic, setTopic] = React.useState("");
   const [message, setMessage] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -348,9 +361,9 @@ function SupportModal({ open, onClose }: { open: boolean; onClose: () => void })
       if (res.ok || res.status === 201) {
         setTicketRef(d.ticketRef);
         setSent(true);
-        toast(d.message || `Support ticket ${d.ticketRef} created`, "success");
+        toast(d.message || `Support ticket ${d.ticketRef} submitted to our team`, "success");
       } else {
-        toast(d.error || "Failed to create ticket", "error");
+        toast(d.error || "Failed to submit ticket", "error");
       }
     } catch (e) {
       setSending(false);
@@ -361,19 +374,35 @@ function SupportModal({ open, onClose }: { open: boolean; onClose: () => void })
   const reset = () => { setTopic(""); setMessage(""); setEmail(""); setSent(false); setTicketRef(""); };
 
   return (
-    <Modal open={open} onClose={() => { onClose(); reset(); }} title="Support" wide>
+    <Modal open={open} onClose={() => { onClose(); reset(); }} title="Help & Support" wide>
       <div className="flex flex-col gap-4">
         {sent ? (
           <div className="flex flex-col items-center py-8 gap-4">
             <span className="material-symbols-outlined text-[48px] text-success">check_circle</span>
             <div className="text-center">
-              <h3 className="text-[16px] font-semibold text-tprimary">Support ticket submitted</h3>
-              <p className="text-[12px] text-tsecondary mt-1">Reference #{ticketRef} — our team will respond within 4 business hours.</p>
+              <h3 className="text-[16px] font-semibold text-tprimary">Ticket submitted to support team</h3>
+              <p className="text-[12px] text-tsecondary mt-1">
+                Reference #{ticketRef} — our support team will review and respond within 4 business hours.
+              </p>
+              <p className="text-[11px] text-ttertiary mt-2">
+                You can track the status of your tickets in Notifications → Support Tickets. Tickets are resolved by the support team, not by you.
+              </p>
             </div>
-            <PearlButton onClick={() => { onClose(); reset(); }}>Close</PearlButton>
+            <div className="flex gap-3">
+              <GhostButton onClick={() => { onClose(); reset(); setBureauView("notifications"); }}>Track Tickets</GhostButton>
+              <PearlButton onClick={() => { onClose(); reset(); }}>Close</PearlButton>
+            </div>
           </div>
         ) : (
           <>
+            <div className="border border-subtle bg-surface-low px-4 py-3 flex items-start gap-3">
+              <span className="material-symbols-outlined text-[16px] text-pearl mt-0.5">support_agent</span>
+              <div className="text-[12px] text-tsecondary">
+                <p className="font-medium text-tprimary mb-1">Submit a ticket to our support team</p>
+                <p>Describe your issue and our team will investigate and respond. You'll be able to track the status in the Support Tickets tab — but only the support team can resolve tickets.</p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 { id: "engine", label: "Calculation Engine", icon: "calculate" },
@@ -407,7 +436,7 @@ function SupportModal({ open, onClose }: { open: boolean; onClose: () => void })
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={5}
-                placeholder="e.g. When I click Submit FPS, the button shows 'Submitting...' but nothing happens. Expected: FPS submission to HMRC."
+                placeholder="e.g. When I click Submit FPS, the button shows 'Submitting...' but nothing happens."
                 className="bg-surface-low border border-subtle px-3 py-2 text-[13px] text-tprimary placeholder:text-ttertiary outline-none focus:border-pearl transition-colors resize-none"
               />
             </Field>
@@ -415,7 +444,7 @@ function SupportModal({ open, onClose }: { open: boolean; onClose: () => void })
             <div className="border border-subtle bg-surface-low px-4 py-3 flex items-start gap-3">
               <span className="material-symbols-outlined text-[16px] text-ttertiary mt-0.5">info</span>
               <div className="text-[11px] text-tsecondary">
-                <p className="font-medium text-tprimary mb-1">Quick References</p>
+                <p className="font-medium text-tprimary mb-1">Quick Self-Help</p>
                 <p>• Engine self-test: <span className="font-mono text-pearl">GET /api/engine/verify</span></p>
                 <p>• Health check: <span className="font-mono text-pearl">GET /api/health</span></p>
                 <p>• Documentation: <span className="font-mono text-pearl">README.md, TESTING.md, DEPLOYMENT.md</span></p>
@@ -434,7 +463,7 @@ function SupportModal({ open, onClose }: { open: boolean; onClose: () => void })
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[16px] mr-1 align-middle">send</span>
-                    Submit Ticket
+                    Submit to Support Team
                   </>
                 )}
               </PearlButton>

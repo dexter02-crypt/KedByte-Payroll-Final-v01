@@ -58,6 +58,7 @@ interface AppState {
   activePayRunId: string | null;
   activeEmployeeId: string | null;
   activePayslipId: string | null;
+  settingsSection: string | null; // "system" | "tax" | "bank" | null — which settings tab to open
   // actions
   login: (user: AuthUser) => void;
   logout: () => void;
@@ -68,6 +69,7 @@ interface AppState {
   setActivePayRun: (id: string | null) => void;
   setActiveEmployee: (id: string | null) => void;
   setActivePayslip: (id: string | null) => void;
+  setSettingsSection: (s: string | null) => void;
 }
 
 export const useApp = create<AppState>()(
@@ -82,6 +84,7 @@ export const useApp = create<AppState>()(
       activePayRunId: null,
       activeEmployeeId: null,
       activePayslipId: null,
+      settingsSection: null,
       login: (user) =>
         set({
           user,
@@ -101,6 +104,7 @@ export const useApp = create<AppState>()(
           activePayRunId: null,
           activeEmployeeId: null,
           activePayslipId: null,
+          settingsSection: null,
         }),
       setSurface: (s) => set({ surface: s }),
       setBureauView: (v) => set({ bureauView: v }),
@@ -109,6 +113,7 @@ export const useApp = create<AppState>()(
       setActivePayRun: (id) => set({ activePayRunId: id }),
       setActiveEmployee: (id) => set({ activeEmployeeId: id }),
       setActivePayslip: (id) => set({ activePayslipId: id }),
+      setSettingsSection: (s) => set({ settingsSection: s }),
     }),
     { name: "kedbyte-payroll" }
   )

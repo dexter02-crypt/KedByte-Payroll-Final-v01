@@ -171,10 +171,25 @@ function ScopeBadge({ scope }: { scope: string }) {
 
 // ============ MAIN SETTINGS VIEW ============
 export function SettingsView() {
-  const [activeSection, setActiveSection] = React.useState<SectionSlug>("tax");
+  const { settingsSection, setSettingsSection } = useApp();
+  const [activeSection, setActiveSectionState] = React.useState<SectionSlug>("tax");
   const [companyId, setCompanyId] = React.useState<string | null>(null);
   const [taxYear, setTaxYear] = React.useState("2026-27");
   const [highlight, setHighlight] = React.useState<string | null>(null);
+
+  // Wrap setActiveSection to also clear the store's settingsSection
+  const setActiveSection = (s: SectionSlug) => {
+    setActiveSectionState(s);
+    setSettingsSection(null);
+  };
+
+  // React to settingsSection from store (e.g., when notification routes to "system")
+  React.useEffect(() => {
+    if (settingsSection && SETTINGS_SECTIONS.some((s) => s.slug === settingsSection)) {
+      setActiveSectionState(settingsSection as SectionSlug);
+      setSettingsSection(null);
+    }
+  }, [settingsSection, setSettingsSection]);
 
   // Deep-link support: ?highlight=ni_pt or #hmrc-credentials
   React.useEffect(() => {
@@ -183,7 +198,7 @@ export function SettingsView() {
       const h = params.get("highlight");
       if (h) setHighlight(h);
       const hash = window.location.hash;
-      if (hash === "#hmrc-credentials") setActiveSection("security");
+      if (hash === "#hmrc-credentials") setActiveSectionState("security");
     }
   }, []);
 

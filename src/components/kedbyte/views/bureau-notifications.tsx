@@ -19,7 +19,7 @@ import {
 // ============================================================
 
 export function BureauNotificationsView() {
-  const { user, setBureauView } = useApp();
+  const { user, setBureauView, setSettingsSection } = useApp();
   const [notifications, setNotifications] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState("all");
@@ -82,42 +82,31 @@ export function BureauNotificationsView() {
       window.open(url + `?uid=${user?.id}`, "_blank");
       return;
     }
-    // Route mapping
-    const routes: Record<string, BureauView> = {
-      rti: "rti",
-      settings: "settings",
-      payslips: "payrun_payslips",
-      documents: "dashboard",
-      payruns: "payrun_input",
-      dashboard: "dashboard",
-      pensions: "pensions",
-      details: "dashboard",
-      holidays: "dashboard",
+    // Type → (view, settingsSection) mapping
+    const typeRoutes: Record<string, { view: BureauView; section?: string }> = {
+      export_ready: { view: "settings", section: "system" },
+      rti_status: { view: "rti" },
+      rti_rejected: { view: "rti" },
+      payslip_ready: { view: "payrun_payslips" },
+      p60_ready: { view: "settings", section: "compliance" },
+      holiday_decision: { view: "dashboard" },
+      bank_change: { view: "settings", section: "bank" },
+      pay_date: { view: "payrun_input" },
+      sync_complete: { view: "settings", section: "system" },
+      dps_fetch_complete: { view: "settings", section: "system" },
+      job_failed: { view: "settings", section: "system" },
+      support_ticket: { view: "notifications" },
+      mfa_reset: { view: "settings", section: "security" },
+      password_changed: { view: "settings", section: "security" },
+      password_reset: { view: "settings", section: "security" },
+      yearend_complete: { view: "settings", section: "compliance" },
     };
-    // Type-based routing
-    const typeRoutes: Record<string, BureauView> = {
-      export_ready: "settings",
-      rti_status: "rti",
-      rti_rejected: "rti",
-      payslip_ready: "payrun_payslips",
-      p60_ready: "settings",
-      holiday_decision: "dashboard",
-      bank_change: "settings",
-      pay_date: "payrun_input",
-      sync_complete: "settings",
-      dps_fetch_complete: "settings",
-      job_failed: "settings",
-      support_ticket: "notifications",
-      mfa_reset: "settings",
-      password_changed: "settings",
-      password_reset: "settings",
-      yearend_complete: "settings",
-    };
-    const target = routes[url] || typeRoutes[n.type] || "dashboard";
-    if (target === "notifications") {
+    const target = typeRoutes[n.type] || { view: "dashboard" as BureauView };
+    if (target.view === "notifications") {
       setTab("tickets");
     } else {
-      setBureauView(target);
+      if (target.section) setSettingsSection(target.section);
+      setBureauView(target.view);
     }
   };
 
