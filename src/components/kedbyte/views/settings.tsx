@@ -1132,8 +1132,8 @@ function BankHolidaysModal({ open, onClose }: { open: boolean; onClose: () => vo
       const res = await fetch("/api/bank-holidays/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actorId: "user_admin" }) });
       const d = await res.json();
       if (d.jobId) {
-        for (let i = 0; i < 10; i++) {
-          await new Promise((r) => setTimeout(r, 2000));
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, i === 0 ? 1000 : 1500));
           const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
           if (statusRes.ok) {
             const sd = await statusRes.json();
@@ -1143,6 +1143,8 @@ function BankHolidaysModal({ open, onClose }: { open: boolean; onClose: () => vo
         }
       }
       setSyncing(false);
+      toast("Sync completed", "success");
+      load();
     } catch { setSyncing(false); toast("Network error", "error"); }
   };
 
@@ -1690,8 +1692,8 @@ function SystemTab() {
       const d = await res.json();
       if (d.jobId) {
         // Poll for completion — no "queued" toast, just wait silently
-        for (let i = 0; i < 15; i++) {
-          await new Promise((r) => setTimeout(r, 2000));
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, i === 0 ? 1000 : 1500));
           const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
           if (statusRes.ok) {
             const sd = await statusRes.json();
@@ -1709,6 +1711,8 @@ function SystemTab() {
           }
         }
         setBankSyncing(false);
+        load();
+        toast("Sync completed", "success");
       } else {
         setBankSyncing(false);
         toast(d.error || "Sync failed", "error");
@@ -1730,8 +1734,8 @@ function SystemTab() {
       const d = await res.json();
       if (d.jobId) {
         // Poll for completion — no "queued" toast, just wait silently
-        for (let i = 0; i < 15; i++) {
-          await new Promise((r) => setTimeout(r, 2000));
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, i === 0 ? 1000 : 1500));
           const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
           if (statusRes.ok) {
             const sd = await statusRes.json();
@@ -1749,6 +1753,8 @@ function SystemTab() {
           }
         }
         setDpsFetching(false);
+        load();
+        toast("DPS fetch completed", "success");
       } else {
         setDpsFetching(false);
         toast(d.error || "DPS fetch failed", "error");

@@ -33,7 +33,7 @@ export function ExportButton({ href, label, icon, method = "GET", body, filename
         toast(d.message || "Export queued — preparing…", "info");
         const poll = async () => {
           for (let i = 0; i < 30; i++) {
-            await new Promise((r) => setTimeout(r, 2000));
+          await new Promise((r) => setTimeout(r, i === 0 ? 1000 : 1500));
             try {
               const statusRes = await fetch(`/api/exports/${jobIdRef.current}/status`);
               if (statusRes.ok) {

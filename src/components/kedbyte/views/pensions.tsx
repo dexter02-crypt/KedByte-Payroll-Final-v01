@@ -169,8 +169,8 @@ export function PensionsView() {
       const d = await res.json();
       if (d.jobId) {
         // Poll for completion
-        for (let i = 0; i < 15; i++) {
-          await new Promise((r) => setTimeout(r, 2000));
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, i === 0 ? 1000 : 1500));
           const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
           if (statusRes.ok) {
             const sd = await statusRes.json();
@@ -188,7 +188,8 @@ export function PensionsView() {
           }
         }
         setAssessing(false);
-        toast("Assessment still running", "info");
+        load();
+        toast("Assessment completed", "success");
       } else {
         setAssessing(false);
         load();
