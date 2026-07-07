@@ -151,22 +151,22 @@ export function BureauNotificationsView() {
 
   const typeRouteLabel = (type: string, actionUrl?: string) => {
     const labels: Record<string, string> = {
-      export_ready: "Go to System →",
+      export_ready: "Go to Settings →",
       rti_status: "Go to RTI →",
-      rti_rejected: "Go to RTI Errors →",
+      rti_rejected: "Go to RTI →",
       payslip_ready: "Go to Payslips →",
-      p60_ready: "Go to Documents →",
-      holiday_decision: "Go to Holidays →",
+      p60_ready: "Go to Settings →",
+      holiday_decision: "Go to Dashboard →",
       bank_change: "Go to Settings →",
       pay_date: "Go to Pay Runs →",
-      sync_complete: "Go to System →",
-      dps_fetch_complete: "Go to System →",
-      job_failed: "Go to System →",
+      sync_complete: "Go to Settings →",
+      dps_fetch_complete: "Go to Settings →",
+      job_failed: "Go to Settings →",
       support_ticket: "View Tickets →",
       mfa_reset: "Go to Settings →",
       password_changed: "Go to Settings →",
       password_reset: "Go to Settings →",
-      yearend_complete: "Go to Documents →",
+      yearend_complete: "Go to Settings →",
     };
     return labels[type] || (actionUrl ? "Open →" : "");
   };
@@ -297,14 +297,16 @@ export function BureauNotificationsView() {
                     <div className="flex items-center gap-2">
                       <span className="text-[14px] text-tprimary font-medium">Ticket #{t.ticketRef}</span>
                       <span className="text-[10px] text-ttertiary font-mono uppercase tracking-wider border border-subtle px-1.5 py-0.5">{t.topic}</span>
+                      <span className="text-[10px] text-success font-mono uppercase tracking-wider">● {t.status || "open"}</span>
                     </div>
-                    <p className="text-[12px] text-tsecondary mt-1">
-                      {t.email ? `From: ${t.email} · ` : ""}{t.messageLength || 0} chars · Created {fmtDateTime(t.createdAt)}
+                    {t.message && (
+                      <p className="text-[12px] text-tsecondary mt-2 border-l-2 border-subtle pl-3" style={{ borderLeftColor: "rgba(245,245,245,0.06)" }}>
+                        {t.message}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-ttertiary mt-2 font-mono">
+                      {t.email ? `From: ${t.email} · ` : ""}Created {fmtDateTime(t.createdAt)}
                     </p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] text-success font-mono uppercase tracking-wider">● Open</span>
-                      <span className="text-[10px] text-ttertiary font-mono">Response within 4 business hours</span>
-                    </div>
                   </div>
                 </div>
               ))}

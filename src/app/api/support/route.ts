@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 // POST /api/support — create a support ticket
+// Tickets are stored in audit_log (source of truth for the tickets list).
+// No notification is created for the ticket creator — they see confirmation
+// in the modal and can track it in the Support Tickets tab.
 export async function POST(req: NextRequest) {
   const { topic, email, message, userId } = await req.json();
 
@@ -12,21 +15,7 @@ export async function POST(req: NextRequest) {
   // Generate ticket reference
   const ticketRef = "KB-" + Date.now().toString().slice(-6);
 
-  // Create a notification for the user confirming the ticket
-  if (userId) {
-    await db.notification.create({
-      data: {
-        tenantId: "bureau_kedbyte",
-        userId,
-        type: "support_ticket",
-        title: `Support ticket ${ticketRef} created`,
-        body: `Topic: ${topic}. ${message.slice(0, 100)}${message.length > 100 ? "…" : ""}. Our team will respond within 4 business hours.`,
-        actionUrl: "notifications",
-      },
-    });
-  }
-
-  // Audit the ticket creation
+  // Store the ticket as an audit log entry
   await db.auditLog.create({
     data: {
       tenantId: "bureau_kedbyte",
@@ -34,7 +23,7 @@ export async function POST(req: NextRequest) {
       action: "SUPPORT_TICKET_CREATED",
       entityType: "support",
       entityId: ticketRef,
-      afterJson: JSON.stringify({ ticketRef, topic, email, messageLength: message.length }),
+      afterJson: JSON.stringify({ ticketRef, topic, email, message, messageLength: message.length, status: "open" }),
       prevHash: "0".repeat(64),
       currHash: "0".repeat(64),
       seq: Math.floor(Date.now() / 1000),
@@ -48,7 +37,7 @@ export async function POST(req: NextRequest) {
   }, { status: 201 });
 }
 
-// GET /api/support — list support tickets (for admin view)
+// GET /api/support — list support tickets
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
   const logs = await db.auditLog.findMany({
@@ -66,7 +55,9 @@ export async function GET(req: NextRequest) {
       ticketRef: data.ticketRef,
       topic: data.topic,
       email: data.email,
+      message: data.message || "",
       messageLength: data.messageLength,
+      status: data.status || "open",
       createdAt: l.createdAt,
       actorId: l.actorId,
     };

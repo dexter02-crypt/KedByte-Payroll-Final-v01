@@ -78,14 +78,32 @@ export function BureauShell() {
     return () => clearInterval(interval);
   }, [loadNotifs]);
 
-  // Mark notification as read when clicked
-  const markNotifRead = async (notifId: string, actionUrl?: string | null) => {
+  // Mark notification as read when clicked + route to source
+  const markNotifRead = async (notifId: string, actionUrl?: string | null, type?: string) => {
     await fetch("/api/notifications", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "mark-read", notificationId: notifId }),
     });
     loadNotifs(); // Refresh immediately
+    // Route based on type
+    if (actionUrl && actionUrl.startsWith("/api/")) {
+      window.open(actionUrl + `?uid=${user?.id}`, "_blank");
+      return;
+    }
+    const typeRoutes: Record<string, BureauView> = {
+      export_ready: "settings", rti_status: "rti", rti_rejected: "rti",
+      payslip_ready: "payrun_payslips", p60_ready: "settings",
+      holiday_decision: "dashboard", bank_change: "settings",
+      pay_date: "payrun_input", sync_complete: "settings",
+      dps_fetch_complete: "settings", job_failed: "settings",
+      support_ticket: "notifications", mfa_reset: "settings",
+      password_changed: "settings", password_reset: "settings",
+      yearend_complete: "settings",
+    };
+    const target = typeRoutes[type || ""] || "dashboard";
+    setNotifOpen(false);
+    setBureauView(target);
   };
 
   const markAllRead = async (uid: string) => {
@@ -254,7 +272,7 @@ export function BureauShell() {
                 notifications.slice(0, 20).map((n) => (
                   <button
                     key={n.id}
-                    onClick={() => { markNotifRead(n.id, n.actionUrl); if (n.actionUrl && !n.actionUrl.startsWith("/api/")) setNotifOpen(false); }}
+                    onClick={() => markNotifRead(n.id, n.actionUrl, n.type)}
                     className={`w-full text-left px-4 py-3 border-b border-subtle transition-colors hover:bg-surface-high ${!n.readAt ? "bg-surface-low" : ""}`}
                   >
                     <div className="flex items-start gap-3">
