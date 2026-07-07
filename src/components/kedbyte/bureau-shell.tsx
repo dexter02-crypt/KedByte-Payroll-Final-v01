@@ -58,26 +58,19 @@ export function BureauShell() {
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [supportOpen, setSupportOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState<any[]>([]);
-  const [prevNotifCount, setPrevNotifCount] = React.useState(0);
 
   // Real-time notification polling — refreshes every 10 seconds
+  // Only updates the bell badge count; does NOT create toasts (avoids duplicate
+  // toasts when an action's own polling already shows a completion toast)
   const loadNotifs = React.useCallback(() => {
     if (!user) return;
     fetch(`/api/notifications?userId=${user.id}`)
       .then((r) => r.json())
       .then((d) => {
-        const newNotifs = d.notifications || [];
-        // Detect new notifications for toast alert
-        const unreadCount = newNotifs.filter((n: any) => !n.readAt).length;
-        if (unreadCount > prevNotifCount && prevNotifCount > 0) {
-          const fresh = newNotifs.slice(0, unreadCount - prevNotifCount);
-          fresh.forEach((n: any) => toast(`🔔 ${n.title}`, "info"));
-        }
-        setPrevNotifCount(unreadCount);
-        setNotifications(newNotifs);
+        setNotifications(d.notifications || []);
       })
       .catch(() => {});
-  }, [user, prevNotifCount]);
+  }, [user]);
 
   React.useEffect(() => {
     loadNotifs(); // Initial load

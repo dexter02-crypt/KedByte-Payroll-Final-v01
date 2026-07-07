@@ -1137,8 +1137,8 @@ function BankHolidaysModal({ open, onClose }: { open: boolean; onClose: () => vo
           const statusRes = await fetch(`/api/exports/${d.jobId}/status`);
           if (statusRes.ok) {
             const sd = await statusRes.json();
-            if (sd.status === "completed") { toast("Sync completed", "success"); setSyncing(false); load(); return; }
-            if (sd.status === "failed") { toast("Sync failed", "error"); setSyncing(false); return; }
+            if (sd.status === "completed") { setSyncing(false); toast("Sync completed", "success"); load(); return; }
+            if (sd.status === "failed") { setSyncing(false); toast("Sync failed", "error"); return; }
           }
         }
       }
@@ -1696,26 +1696,26 @@ function SystemTab() {
           if (statusRes.ok) {
             const sd = await statusRes.json();
             if (sd.status === "completed") {
-              toast("Sync completed", "success");
               setBankSyncing(false);
               load();
+              toast("Sync completed", "success");
               return;
             }
             if (sd.status === "failed") {
-              toast("Sync failed", "error");
               setBankSyncing(false);
+              toast("Sync failed", "error");
               return;
             }
           }
         }
         setBankSyncing(false);
       } else {
-        toast(d.error || "Sync failed", "error");
         setBankSyncing(false);
+        toast(d.error || "Sync failed", "error");
       }
     } catch (e) {
-      toast("Network error", "error");
       setBankSyncing(false);
+      toast("Network error", "error");
     }
   };
 
@@ -1736,26 +1736,26 @@ function SystemTab() {
           if (statusRes.ok) {
             const sd = await statusRes.json();
             if (sd.status === "completed") {
-              toast("DPS fetch completed", "success");
               setDpsFetching(false);
               load();
+              toast("DPS fetch completed", "success");
               return;
             }
             if (sd.status === "failed") {
-              toast("DPS fetch failed", "error");
               setDpsFetching(false);
+              toast("DPS fetch failed", "error");
               return;
             }
           }
         }
         setDpsFetching(false);
       } else {
-        toast(d.error || "DPS fetch failed", "error");
         setDpsFetching(false);
+        toast(d.error || "DPS fetch failed", "error");
       }
     } catch (e) {
-      toast("Network error", "error");
       setDpsFetching(false);
+      toast("Network error", "error");
     }
   };
 

@@ -175,28 +175,28 @@ export function PensionsView() {
           if (statusRes.ok) {
             const sd = await statusRes.json();
             if (sd.status === "completed") {
-              toast("Assessment complete — statuses updated", "success");
               setAssessing(false);
               load();
+              toast("Assessment completed", "success");
               return;
             }
             if (sd.status === "failed") {
-              toast("Assessment failed", "error");
               setAssessing(false);
+              toast("Assessment failed", "error");
               return;
             }
           }
         }
-        toast("Assessment still running — check back shortly", "info");
         setAssessing(false);
+        toast("Assessment still running", "info");
       } else {
-        toast("Assessment completed", "success");
         setAssessing(false);
         load();
+        toast("Assessment completed", "success");
       }
     } catch {
-      toast("Assessment failed", "error");
       setAssessing(false);
+      toast("Assessment failed", "error");
     }
   };
 
